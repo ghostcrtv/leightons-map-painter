@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <clipPath id="g"><circle cx="60" cy="64" r="46"/></clipPath>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#121b29"/>
+  <circle cx="60" cy="64" r="46" fill="#2a6f97"/>
+  <g clip-path="url(#g)">
+    <path fill="#e94b3c" d="M22 30c10-8 26-10 36-4 6 4 4 12-2 16-8 5-6 14-14 16-9 2-16-4-20-12-3-6-5-11 0-16z"/>
+    <path fill="#fff" d="M22 30c10-8 26-10 36-4l-4 6c-9-4-21-3-29 3z"/>
+    <path fill="#35a853" d="M66 22c12 0 24 6 30 16 4 7-2 12-9 11-7-1-10 6-17 5-8-1-10-9-8-16 1-6-2-14 4-16z"/>
+    <path fill="#ffd34d" d="M52 70c8-3 18 0 22 8 4 9 0 20-6 28-5 6-14 4-16-3-2-8-8-12-8-20 0-6 3-11 8-13z"/>
+    <path fill="#1d3f8f" d="M52 70c8-3 18 0 22 8l-7 4c-3-5-9-7-14-5z"/>
+    <path fill="#e94b3c" d="M84 70c8 0 14 6 14 14 0 7-6 10-11 8-6-2-10-8-9-14 0-5 2-8 6-8z"/>
+  </g>
+  <circle cx="60" cy="64" r="46" fill="none" stroke="#0b1320" stroke-width="3"/>
+  <path fill="#ffd34d" d="m110 14 6 6-36 40-8 2 2-8z"/>
+  <path fill="#c47d14" d="M74 56c-7 0-12 5-12 12 0 5-3 8-8 9 6 6 22 5 26-6 2-6-1-12-6-15z"/>
+</svg>

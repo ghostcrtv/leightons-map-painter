@@ -1,0 +1,16 @@
+{
+  "name": "Leighton’s Map Painter",
+  "short_name": "Map Painter",
+  "description": "Paint the world, conquer countries and build islands.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0f1a2a",
+  "theme_color": "#121b29",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/logo.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
