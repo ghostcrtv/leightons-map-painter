@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1 — 2026-10-17 — iPad app readiness review
+
+- Docs: `docs/ios-readiness.md` (Capacitor/iPadOS compatibility, offline, licences, App Store
+  concerns); "Future: iPad App Store release" section in ROADMAP.md; one-codebase rules in CLAUDE.md.
+- New: `public/third-party-notices.txt` (licence notices shipped with the game) and
+  `npm run notices` to regenerate it. No gameplay changes.
+
 ## 0.3.0 — 2026-10-17 — Phase 2: Territory painting
 
 - New: Paint tool — pick a country and paint over neighbours; the land becomes theirs, shows

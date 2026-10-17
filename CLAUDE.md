@@ -166,6 +166,23 @@ battleHistory, settings }`. Export = the same object as a `.json` file. On load,
 `migrations[formatVersion]` step by step up to the current version. Never delete a save
 without the player confirming.
 
+## Web + future iPad app (one codebase)
+
+The game may later ship as a paid iPad app via **Capacitor + Xcode**, built from this same code
+(see docs/ios-readiness.md and ROADMAP.md). Until then, do NOT add Capacitor. Keep these rules:
+- No remote URLs, CDNs or online APIs at runtime. Every asset lives in `public/` or the bundle.
+- Relative paths only (`import.meta.env.BASE_URL`); `base: './'` in vite.config.ts.
+- No downloading or running code at runtime. No analytics/ads/sign-in without asking first.
+- Storage, file export/import, sharing and haptics go through small adapters (Phase 6+), so the
+  app can swap in Capacitor plugins. Don't call `localStorage`, download links or
+  `navigator.share` directly from game code. (Today `utils/settings.ts` and
+  `territory/session.ts` use localStorage: move them behind the storage adapter in Phase 6.)
+- No `alert`/`confirm`/`prompt`; use in-page confirmations.
+- CSS/JS must work in Safari 15.4+ (iPadOS deployment target).
+- New runtime dependency? Check its licence allows commercial use and run `npm run notices`.
+- Keep battles abstract and neutral: no realistic violence, real leaders, real wars or
+  insults to any nationality (App Store guideline 1.1.1/1.1.2).
+
 ## Coding conventions
 
 - TypeScript strict mode. Small modules with one job each.
