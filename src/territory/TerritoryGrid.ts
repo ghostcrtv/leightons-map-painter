@@ -190,8 +190,9 @@ export class TerritoryGrid {
   /**
    * Paint (owner > 0) or restore (owner = 0, back to the real Earth) a circle.
    * Only land changes: painting never turns water into land (that's Land Expansion).
+   * With `within`, only that country's real land changes.
    */
-  stampCircle(cx: number, cy: number, radius: number, owner: number, diff: GridDiff) {
+  stampCircle(cx: number, cy: number, radius: number, owner: number, diff: GridDiff, within?: number) {
     const cell = this.cell;
     const r0 = Math.max(0, Math.floor((cy - radius) / cell));
     const r1 = Math.min(this.rows - 1, Math.floor((cy + radius) / cell));
@@ -207,18 +208,25 @@ export class TerritoryGrid {
       for (let c = c0; c <= c1; c++) {
         const i = base + c;
         const orig = this.original[i];
-        if (orig === WATER) continue;
+        if (orig === WATER || (within && orig !== within)) continue;
         this.set(i, owner || orig, diff);
       }
     }
     // Countries too small for the grid follow their single point.
     for (let code = 1; code <= this.count; code++) {
-      if (!this.tinyOwner[code]) continue;
+      if (!this.tinyOwner[code] || (within && code !== within)) continue;
       const p = this.tinyPoint[code];
       const dx = p[0] - cx;
       const dy = p[1] - cy;
       if (dx * dx + dy * dy <= rr) this.setTiny(code, owner || code, diff);
     }
+  }
+
+  /** All of a country's real land goes to `owner` (owner = the country itself puts it back). */
+  fillCountry(code: number, owner: number, diff: GridDiff) {
+    const o = this.original;
+    for (let i = 0; i < o.length; i++) if (o[i] === code) this.set(i, owner, diff);
+    if (this.tinyOwner[code]) this.setTiny(code, owner, diff);
   }
 
   /** Put one country back to its real borders: its own land returns, and land it took is given back. */

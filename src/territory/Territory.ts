@@ -1,7 +1,7 @@
 /**
  * Territory — the CURRENT world, as a list of actions on top of the original Earth.
  *
- *   original Earth (never changes) + [paint, paint, erase, reset Poland, …] = the world now
+ *   original Earth (never changes) + [paint, fill, erase, reset Poland, …] = the world now
  *
  * Keeping actions (not a copy of the map) makes undo/redo exact, keeps saves small,
  * and lets the original borders be restored at any time. Pure logic: no drawing here.
@@ -11,18 +11,29 @@
 import { emptyBBox, type BBox } from '../map/geometry';
 import { TerritoryGrid, type CountryStats, type GridDiff } from './TerritoryGrid';
 
-/** Circles are stored flat: [x, y, r, x, y, r, …] in world units. */
+/**
+ * Circles are stored flat: [x, y, r, x, y, r, …] in world units.
+ * `within`: the stroke only changes that country's real land (the country the stroke
+ * entered first). Older saves have no `within` and paint any land.
+ */
 export type Action =
-  | { kind: 'paint'; owner: string; circles: number[] }
-  | { kind: 'erase'; circles: number[] }
+  | { kind: 'paint'; owner: string; circles: number[]; within?: string }
+  | { kind: 'erase'; circles: number[]; within?: string }
+  /** The whole of country `id` (its real borders) goes to `owner`, or back to itself if no owner. */
+  | { kind: 'fill'; id: string; owner?: string }
   | { kind: 'resetCountry'; id: string }
   | { kind: 'resetWorld' };
 
 /** A drawable piece of the current world (consecutive strokes by one owner are merged). */
 export interface Layer {
+  /** 'paint' = owner's flag over the shape · 'erase' = original countries back · 'resetCountry' */
   kind: 'paint' | 'erase' | 'resetCountry';
   /** Painting country (paint layers). */
   owner?: string;
+  /** Only this country's real land is affected (locked strokes and fills). */
+  within?: string;
+  /** The shape is the whole of `within` (a fill), not brush circles. */
+  whole?: boolean;
   /** Country put back to its real borders (resetCountry layers). */
   resetId?: string;
   circles: number[];
@@ -39,12 +50,23 @@ interface Applied {
 }
 
 interface Stroke {
+  id: number;
   kind: 'paint' | 'erase';
   owner?: string;
+  within?: string;
   radius: number;
   circles: number[];
   diff: GridDiff;
   last: [number, number] | null;
+}
+
+/** What the map needs to draw a stroke while it is happening. */
+export interface StrokeInfo {
+  id: number;
+  kind: 'paint' | 'erase';
+  owner?: string;
+  within?: string;
+  circles: number[];
 }
 
 export const SAVE_FORMAT_VERSION = 1;
@@ -58,10 +80,11 @@ export class Territory {
   private applied: Applied[] = [];
   private redoStack: Action[] = [];
   private stroke: Stroke | null = null;
+  private strokeCounter = 0;
   private codeById: Map<string, number>;
   private idByCode: string[];
   private statsCache: { version: number; stats: CountryStats[] } | null = null;
-  private layersCache: { version: number; layers: Layer[] } | null = null;
+  private layersCache: { version: number; withStroke: boolean; layers: Layer[] } | null = null;
   /** Bumps on every change; the map and UI watch it. */
   version = 0;
   private listeners = new Set<() => void>();
@@ -93,7 +116,34 @@ export class Territory {
   beginStroke(kind: 'paint' | 'erase', radius: number, owner?: string) {
     this.cancelStroke();
     if (kind === 'paint' && (!owner || !this.codeById.has(owner))) return;
-    this.stroke = { kind, owner, radius, circles: [], diff: TerritoryGrid.emptyDiff(), last: null };
+    this.stroke = {
+      id: ++this.strokeCounter,
+      kind,
+      owner,
+      radius,
+      circles: [],
+      diff: TerritoryGrid.emptyDiff(),
+      last: null,
+    };
+  }
+
+  /**
+   * Keep the stroke inside one country's real land from now on. Called once, with the
+   * first country the stroke touches that it can change (a painter's own land doesn't count).
+   */
+  lockStroke(id: string) {
+    const s = this.stroke;
+    if (!s || s.within || !this.codeById.has(id)) return;
+    s.within = id;
+  }
+
+  get strokeLocked() {
+    return !!this.stroke?.within;
+  }
+
+  /** Move the stroke's pen without painting (before it is locked to a country). */
+  trackStroke(x: number, y: number) {
+    if (this.stroke) this.stroke.last = [x, y];
   }
 
   /** Add a point to the stroke. Fills the gap from the last point so fast swipes stay solid. */
@@ -106,14 +156,15 @@ export class Territory {
       const dx = x - s.last[0];
       const dy = y - s.last[1];
       const d = Math.hypot(dx, dy);
-      if (d < step * 0.5) return;
-      const n = Math.ceil(d / step);
-      for (let k = 1; k <= n; k++) pts.push([s.last[0] + (dx * k) / n, s.last[1] + (dy * k) / n]);
+      if (d < step * 0.5 && s.circles.length) return;
+      const n = Math.max(1, Math.ceil(d / step));
+      for (let k = s.circles.length ? 1 : 0; k <= n; k++) pts.push([s.last[0] + (dx * k) / n, s.last[1] + (dy * k) / n]);
     } else pts.push([x, y]);
     const owner = s.kind === 'paint' ? this.codeById.get(s.owner!)! : 0;
+    const within = s.within ? this.codeById.get(s.within) : undefined;
     for (const [px, py] of pts) {
       s.circles.push(round(px), round(py), round(s.radius));
-      this.grid.stampCircle(px, py, s.radius, owner, s.diff);
+      this.grid.stampCircle(px, py, s.radius, owner, s.diff, within);
     }
     s.last = [x, y];
     this.changed();
@@ -124,9 +175,14 @@ export class Territory {
     const s = this.stroke;
     if (!s) return;
     this.stroke = null;
-    if (s.circles.length === 0) return;
+    if (s.circles.length === 0) {
+      this.changed();
+      return;
+    }
     const action: Action =
-      s.kind === 'paint' ? { kind: 'paint', owner: s.owner!, circles: s.circles } : { kind: 'erase', circles: s.circles };
+      s.kind === 'paint'
+        ? { kind: 'paint', owner: s.owner!, circles: s.circles, within: s.within }
+        : { kind: 'erase', circles: s.circles, within: s.within };
     this.applied.push({ action, diff: s.diff });
     this.redoStack = [];
     this.changed();
@@ -138,14 +194,26 @@ export class Territory {
     if (!s) return;
     this.stroke = null;
     this.grid.revert(s.diff);
-    if (s.circles.length) this.changed();
+    this.changed();
   }
 
   get painting() {
     return this.stroke !== null;
   }
 
+  /** The stroke being painted right now, if any. */
+  strokeInfo(): StrokeInfo | null {
+    const s = this.stroke;
+    return s ? { id: s.id, kind: s.kind, owner: s.owner, within: s.within, circles: s.circles } : null;
+  }
+
   // ------------------------------------------------------------ other actions
+
+  /** The whole country `id` goes to `owner` (or back to its real self when owner is undefined). */
+  fill(id: string, owner?: string) {
+    if (!this.codeById.has(id) || (owner && (!this.codeById.has(owner) || owner === id))) return;
+    this.run(owner ? { kind: 'fill', id, owner } : { kind: 'fill', id });
+  }
 
   resetCountry(id: string) {
     if (!this.codeById.has(id)) return;
@@ -157,7 +225,7 @@ export class Territory {
   }
 
   private run(action: Action) {
-    this.cancelStroke();
+    this.stroke && this.cancelStroke();
     this.applied.push({ action, diff: this.applyToGrid(action) });
     this.redoStack = [];
     this.changed();
@@ -167,15 +235,19 @@ export class Territory {
     const diff = TerritoryGrid.emptyDiff();
     const g = this.grid;
     switch (a.kind) {
-      case 'paint': {
-        const owner = this.codeById.get(a.owner) ?? 0;
-        if (!owner) break;
-        for (let i = 0; i < a.circles.length; i += 3) g.stampCircle(a.circles[i], a.circles[i + 1], a.circles[i + 2], owner, diff);
+      case 'paint':
+      case 'erase': {
+        const owner = a.kind === 'paint' ? this.codeById.get(a.owner) ?? 0 : 0;
+        if (a.kind === 'paint' && !owner) break;
+        const within = a.within ? this.codeById.get(a.within) : undefined;
+        for (let i = 0; i < a.circles.length; i += 3) g.stampCircle(a.circles[i], a.circles[i + 1], a.circles[i + 2], owner, diff, within);
         break;
       }
-      case 'erase':
-        for (let i = 0; i < a.circles.length; i += 3) g.stampCircle(a.circles[i], a.circles[i + 1], a.circles[i + 2], 0, diff);
+      case 'fill': {
+        const code = this.codeById.get(a.id);
+        if (code) g.fillCountry(code, a.owner ? this.codeById.get(a.owner) ?? code : code, diff);
         break;
+      }
       case 'resetCountry': {
         const code = this.codeById.get(a.id);
         if (code) g.resetCountry(code, diff);
@@ -199,7 +271,7 @@ export class Territory {
   }
 
   undo() {
-    this.cancelStroke();
+    this.stroke && this.cancelStroke();
     const last = this.applied.pop();
     if (!last) return;
     this.grid.revert(last.diff);
@@ -208,7 +280,7 @@ export class Territory {
   }
 
   redo() {
-    this.cancelStroke();
+    this.stroke && this.cancelStroke();
     const action = this.redoStack.pop();
     if (!action) return;
     this.applied.push({ action, diff: this.applyToGrid(action) });
@@ -217,14 +289,15 @@ export class Territory {
 
   /** True if anything differs from the real Earth. */
   get changedFromEarth() {
-    return this.layers().length > 0;
+    return this.layers(false).length > 0;
   }
 
   // ------------------------------------------------------------ reading the world
 
-  /** What to draw on top of the original Earth, in order. */
-  layers(): Layer[] {
-    if (this.layersCache?.version === this.version) return this.layersCache.layers;
+  /** What to draw on top of the original Earth, in order (optionally without the stroke in progress). */
+  layers(withStroke = true): Layer[] {
+    const c = this.layersCache;
+    if (c && c.version === this.version && c.withStroke === withStroke) return c.layers;
     const layers: Layer[] = [];
     const actions = this.applied.map((a) => a.action);
     let start = 0;
@@ -234,37 +307,50 @@ export class Territory {
     for (let i = start; i < actions.length; i++) {
       const a = actions[i];
       if (a.kind === 'paint' || a.kind === 'erase') {
+        const owner = a.kind === 'paint' ? a.owner : undefined;
         const prev = layers[layers.length - 1];
-        if (prev && prev.kind === a.kind && prev.owner === (a.kind === 'paint' ? a.owner : undefined)) {
-          // Merge with the previous stroke by the same country (fewer layers = faster drawing).
+        if (prev && prev.kind === a.kind && !prev.whole && prev.owner === owner && prev.within === a.within) {
+          // Merge with the previous stroke by the same country in the same place (faster drawing).
           prev.circles = prev.circles.concat(a.circles);
           prev.box = circlesBox(a.circles, prev.box);
           prev.key = `${prev.key.split(':')[0]}:${prev.circles.length}`;
         } else {
           layers.push({
             kind: a.kind,
-            owner: a.kind === 'paint' ? a.owner : undefined,
+            owner,
+            within: a.within,
             circles: a.circles.slice(),
             box: circlesBox(a.circles),
             key: `${i}:${a.circles.length}`,
           });
         }
+      } else if (a.kind === 'fill') {
+        layers.push({
+          kind: a.owner ? 'paint' : 'erase',
+          owner: a.owner,
+          within: a.id,
+          whole: true,
+          circles: [],
+          box: emptyBBox(),
+          key: `${i}:fill`,
+        });
       } else if (a.kind === 'resetCountry') {
         const absorbs = layers.filter((l) => l.kind === 'paint' && l.owner === a.id);
         layers.push({ kind: 'resetCountry', resetId: a.id, circles: [], box: emptyBBox(), key: `${i}:reset`, absorbs });
       }
     }
     const s = this.stroke;
-    if (s && s.circles.length) {
+    if (withStroke && s && s.circles.length) {
       layers.push({
         kind: s.kind,
         owner: s.owner,
+        within: s.within,
         circles: s.circles,
         box: circlesBox(s.circles),
-        key: `stroke:${s.circles.length}`,
+        key: `stroke${s.id}:${s.circles.length}`,
       });
     }
-    this.layersCache = { version: this.version, layers };
+    this.layersCache = { version: this.version, withStroke, layers };
     return layers;
   }
 
@@ -296,7 +382,7 @@ export class Territory {
 
   /** Rebuild the world from saved actions (original Earth + actions). */
   load(saved: SavedTerritory) {
-    this.cancelStroke();
+    this.stroke && this.cancelStroke();
     this.grid.resetAll(TerritoryGrid.emptyDiff());
     this.applied = [];
     this.redoStack = [];
@@ -316,11 +402,14 @@ export function migrate(saved: SavedTerritory): SavedTerritory {
 
 function isValidAction(a: Action, ids: Map<string, number>): boolean {
   if (!a || typeof a !== 'object') return false;
+  const okWithin = (w?: string) => w === undefined || ids.has(w);
   switch (a.kind) {
     case 'paint':
-      return ids.has(a.owner) && Array.isArray(a.circles) && a.circles.length % 3 === 0;
+      return ids.has(a.owner) && Array.isArray(a.circles) && a.circles.length % 3 === 0 && okWithin(a.within);
     case 'erase':
-      return Array.isArray(a.circles) && a.circles.length % 3 === 0;
+      return Array.isArray(a.circles) && a.circles.length % 3 === 0 && okWithin(a.within);
+    case 'fill':
+      return ids.has(a.id) && (a.owner === undefined || ids.has(a.owner));
     case 'resetCountry':
       return ids.has(a.id);
     case 'resetWorld':

@@ -13,10 +13,25 @@ const BASE = import.meta.env.BASE_URL;
 /** The full-screen map. Loads the world, then hands drawing over to MapRenderer. */
 export function MapView() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const ringRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current!;
+    const ring = ringRef.current!;
     const game = useGame.getState();
+    /**
+     * The brush outline is a small page element moved with CSS, not drawn on the map,
+     * so following the finger never makes the map redraw.
+     */
+    const showRing = (x: number, y: number, radius: number, erase: boolean) => {
+      ring.hidden = false;
+      ring.style.width = ring.style.height = `${radius * 2}px`;
+      ring.style.transform = `translate(${x - radius}px, ${y - radius}px)`;
+      ring.classList.toggle('erase', erase);
+    };
+    const hideRing = () => {
+      ring.hidden = true;
+    };
     let renderer: MapRenderer | null = null;
     let gestures: GestureController | null = null;
     let cancelled = false;
@@ -44,6 +59,26 @@ export function MapView() {
           return !!getTerritory() && (st.tool === 'erase' || (st.tool === 'paint' && !!st.painterId));
         };
         const toWorld = (x: number, y: number) => r.toWorld(x, y);
+        let fillAt: [number, number] | null = null;
+        /**
+         * A stroke only changes ONE country: the first one it reaches that it can change
+         * (for Paint, not the painter's own land). Until then the pen just follows the finger.
+         */
+        const paintTo = (x: number, y: number) => {
+          const t = getTerritory();
+          if (!t) return;
+          const [wx, wy] = toWorld(x, y);
+          if (!t.strokeLocked) {
+            const st = useGame.getState();
+            const id = r.countryAt(x, y);
+            if (id && (st.tool === 'erase' || id !== st.painterId)) t.lockStroke(id);
+            else {
+              t.trackStroke(wx, wy);
+              return;
+            }
+          }
+          t.extendStroke(wx, wy);
+        };
         gestures = new GestureController(canvas, {
           panBy: (dx, dy) => r.panBy(dx, dy),
           zoomAt: (f, x, y) => r.zoomAt(f, x, y),
@@ -65,15 +100,16 @@ export function MapView() {
             const st = useGame.getState();
             if (paintMode()) {
               r.setHover(null);
-              r.setBrushPreview({ x, y, r: BRUSH_PX[st.brush], erase: st.tool === 'erase' });
+              if (st.brush === 'F') hideRing();
+              else showRing(x, y, BRUSH_PX[st.brush], st.tool === 'erase');
             } else {
-              r.setBrushPreview(null);
+              hideRing();
               r.setHover(r.hitTest(x, y));
             }
           },
           hoverEnd: () => {
             r.setHover(null);
-            r.setBrushPreview(null);
+            hideRing();
           },
           begin: () => r.beginInteraction(),
           end: (vx, vy) => r.endInteraction(vx, vy),
@@ -82,20 +118,43 @@ export function MapView() {
             const t = getTerritory();
             const st = useGame.getState();
             if (!t) return;
+            if (st.brush === 'F') {
+              fillAt = [x, y]; // Fill happens when the finger lifts (so a two-finger move can cancel it)
+              return;
+            }
             t.beginStroke(st.tool === 'paint' ? 'paint' : 'erase', BRUSH_PX[st.brush] / r.scale, st.painterId ?? undefined);
-            t.extendStroke(...toWorld(x, y));
+            paintTo(x, y);
           },
-          paintMove: (x, y) => getTerritory()?.extendStroke(...toWorld(x, y)),
-          paintEnd: () => getTerritory()?.endStroke(),
-          paintCancel: () => getTerritory()?.cancelStroke(),
+          paintMove: (x, y) => {
+            if (fillAt) return;
+            paintTo(x, y);
+          },
+          paintEnd: () => {
+            const t = getTerritory();
+            const st = useGame.getState();
+            if (fillAt && t) {
+              const id = r.countryAt(fillAt[0], fillAt[1]);
+              if (id) {
+                if (st.tool === 'erase') t.fill(id);
+                else if (st.painterId && id !== st.painterId) t.fill(id, st.painterId);
+              }
+              fillAt = null;
+              return;
+            }
+            t?.endStroke();
+          },
+          paintCancel: () => {
+            fillAt = null;
+            getTerritory()?.cancelStroke();
+          },
         });
 
         // Keep the renderer in sync with the store without re-rendering React.
         cleanups.push(
           useGame.subscribe((st, prev) => {
             if (st.selectedId !== prev.selectedId) r.setSelected(st.selectedId);
-            if (st.tool !== prev.tool || st.painterId !== prev.painterId) {
-              r.setBrushPreview(null);
+            if (st.tool !== prev.tool || st.painterId !== prev.painterId || st.brush !== prev.brush) {
+              hideRing();
               canvas.style.cursor = paintMode() ? 'crosshair' : '';
             }
             if (
@@ -233,5 +292,10 @@ export function MapView() {
     };
   }, []);
 
-  return <canvas ref={canvasRef} className="map-canvas" aria-label="World map" role="img" />;
+  return (
+    <>
+      <canvas ref={canvasRef} className="map-canvas" aria-label="World map" role="img" />
+      <div ref={ringRef} className="brush-ring" hidden aria-hidden />
+    </>
+  );
 }

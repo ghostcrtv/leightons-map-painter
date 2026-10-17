@@ -103,7 +103,9 @@ export class GestureController {
     }
     const p = this.local(e);
     this.pointers.set(e.pointerId, { ...p, type: e.pointerType });
-    if (!this.active) {
+    // Painting is not "moving the map", so it doesn't start a map interaction.
+    const willPaint = this.pointers.size === 1 && this.h.paintMode() && !(e.pointerType === 'mouse' && e.button !== 0);
+    if (!this.active && !willPaint) {
       this.active = true;
       this.h.begin();
     }
@@ -120,6 +122,10 @@ export class GestureController {
       if (this.stroking) {
         this.stroking = false;
         this.h.paintCancel();
+        if (!this.active) {
+          this.active = true;
+          this.h.begin();
+        }
       }
       this.moved = true; // a two-finger gesture is never a tap
       this.pinch = this.pinchState();

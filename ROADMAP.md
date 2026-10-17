@@ -24,7 +24,8 @@ Next up: **Phase 3: Country statistics** (Attack, Defense, Money, Military, Powe
 - Automated tests for data and map maths.
 
 ### Phase 2 — Territory painting
-- Paint tool with Small/Medium/Large brushes; captured land shows the painter's flag.
+- Paint tool with Small/Medium/Large brushes and a Fill (whole country) brush; captured land
+  shows the painter's flag. Each stroke stays inside one country.
 - Borders move with the paint; coastlines stay crisp; painting never covers the sea.
 - Erase, Undo, Redo, Reset country, Reset whole world.
 - Territory score (% / "×" bigger), land gained/lost, "Conquered".
@@ -89,7 +90,10 @@ The browser version stays the main version until then. Full review:
   data, so it shows as a dot.
 - Zoom stops at 300× because the free map data isn't accurate beyond that.
 - Erasing next to painted land doesn't draw a border line between them (colours still differ).
-- Painting smoothness not yet checked on a real iPad (test browser has no graphics chip).
+- Painting was laggy on the iPad in v0.3; v0.4 only draws new paint during a stroke. Please
+  re-check on the iPad. Moving/zooming the map still redraws everything each frame.
+- While painting, names and new border lines appear when the finger lifts; the painter's flag
+  may shift slightly then as it re-fits over the bigger territory.
 - Disputed borders follow Natural Earth's de facto view (e.g. Crimea shown as part of Russia,
   Western Sahara as part of Morocco). Decide before any App Store release.
 - Only one world is kept (autosave); multiple named saves come in Phase 6.

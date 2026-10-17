@@ -10,9 +10,10 @@ import { readSetting, writeSetting } from '../utils/settings';
 
 /** Phase 5 adds 'expand' and 'island'. */
 export type Tool = 'select' | 'paint' | 'erase';
-export type BrushSize = 'S' | 'M' | 'L';
+/** S/M/L are round brushes; F (Fill) takes a whole country with one tap. */
+export type BrushSize = 'S' | 'M' | 'L' | 'F';
 /** Brush radius in screen pixels: the brush looks the same size at any zoom. */
-export const BRUSH_PX: Record<BrushSize, number> = { S: 7, M: 16, L: 34 };
+export const BRUSH_PX: Record<BrushSize, number> = { S: 7, M: 16, L: 34, F: 0 };
 export type GameMode = 'sandbox'; // Later: 'conquest'
 
 interface GameState {

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0 — 2026-10-17 — Smoother painting, country lock, Fill
+
+- Changed: a paint (or erase) stroke now stays inside the first country it reaches, so you
+  can't paint the wrong neighbour by accident. Painting starts at your own border.
+- New: Fill brush (paint bucket) — tap a country and all of it becomes the painter's. With the
+  eraser, Fill puts a whole country back.
+- Faster: while painting, only the new paint is drawn (no full-map redraw per movement); the
+  brush outline no longer redraws the map.
+- Changed: the Help button is now just a "?" in a small round button.
+
 ## 0.3.1 — 2026-10-17 — iPad app readiness review
 
 - Docs: `docs/ios-readiness.md` (Capacitor/iPadOS compatibility, offline, licences, App Store

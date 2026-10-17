@@ -124,6 +124,48 @@ describe('undo, redo, erase and reset', () => {
   });
 });
 
+describe('locked strokes and fill', () => {
+  it('a locked stroke only paints that country', () => {
+    const t = makeWorld();
+    t.beginStroke('paint', 25, 'PL'); // a huge brush that also covers Germany…
+    t.lockStroke('VA'); // …but locked to the Vatican speck
+    t.extendStroke(40, 20);
+    t.endStroke();
+    expect(t.statsFor('DE')!.lostKm2).toBe(0);
+    const t2 = makeWorld();
+    t2.beginStroke('paint', 25, 'DE');
+    t2.lockStroke('PL');
+    t2.extendStroke(30, 20); // circle covers both, but only Poland changes
+    t2.endStroke();
+    expect(t2.statsFor('PL')!.lostKm2).toBeGreaterThan(100_000);
+    expect(t2.statsFor('DE')!.lostKm2).toBe(0);
+  });
+
+  it('fill gives a whole country away with one tap, and erase-fill puts it back', () => {
+    const t = makeWorld();
+    t.fill('PL', 'DE');
+    expect(Math.round((t.statsFor('DE')!.currentKm2 / 357_000) * 100)).toBe(187);
+    expect(t.isConquered('PL')).toBe(true);
+    expect(t.layers()[0]).toMatchObject({ kind: 'paint', owner: 'DE', within: 'PL', whole: true });
+    t.fill('PL'); // erase-fill
+    expect(t.statsFor('PL')!.currentKm2).toBeCloseTo(312_000, -1);
+    t.undo();
+    expect(t.isConquered('PL')).toBe(true);
+  });
+
+  it('ignores filling a country with itself', () => {
+    const t = makeWorld();
+    t.fill('DE', 'DE');
+    expect(t.canUndo).toBe(false);
+  });
+
+  it('still loads saves from before strokes were locked', () => {
+    const t = makeWorld();
+    t.load({ formatVersion: 1, actions: [{ kind: 'paint', owner: 'DE', circles: [40, 20, 20] }] });
+    expect(t.isConquered('PL')).toBe(true);
+  });
+});
+
 describe('saving', () => {
   it('rebuilds the same world from saved actions', () => {
     const t = makeWorld();

@@ -1,6 +1,6 @@
 import { mapController } from '../game/mapController';
 import { BRUSH_PX, useGame, type BrushSize, type Tool } from '../game/store';
-import { IconBrush, IconEraser, IconGlobe, IconMinus, IconPlus, IconPointer, IconRedo, IconUndo } from './icons';
+import { IconBrush, IconBucket, IconEraser, IconGlobe, IconMinus, IconPlus, IconPointer, IconRedo, IconUndo } from './icons';
 
 /**
  * Left toolbar: tools, undo/redo and map movement.
@@ -60,6 +60,7 @@ const SIZES: { size: BrushSize; label: string }[] = [
   { size: 'S', label: 'Small' },
   { size: 'M', label: 'Medium' },
   { size: 'L', label: 'Large' },
+  { size: 'F', label: 'Fill' },
 ];
 
 /** Small / Medium / Large brush. The dot shows the real brush size on screen. */
@@ -73,12 +74,16 @@ function BrushPicker() {
           key={size}
           role="radio"
           aria-checked={brush === size}
-          aria-label={`${label} brush`}
-          title={`${label} brush`}
-          className={`brush-btn${brush === size ? ' active' : ''}`}
+          aria-label={size === 'F' ? 'Fill a whole country' : `${label} brush`}
+          title={size === 'F' ? 'Fill a whole country with one tap' : `${label} brush`}
+          className={`brush-btn${brush === size ? ' active' : ''}${size === 'F' ? ' fill' : ''}`}
           onClick={() => setBrush(size)}
         >
-          <span className="brush-dot" style={{ width: Math.min(BRUSH_PX[size] * 1.1, 34), height: Math.min(BRUSH_PX[size] * 1.1, 34) }} />
+          {size === 'F' ? (
+            <IconBucket width={26} height={26} />
+          ) : (
+            <span className="brush-dot" style={{ width: Math.min(BRUSH_PX[size] * 1.1, 34), height: Math.min(BRUSH_PX[size] * 1.1, 34) }} />
+          )}
           <span className="brush-label">{label}</span>
         </button>
       ))}

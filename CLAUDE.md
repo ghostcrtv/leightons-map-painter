@@ -108,8 +108,12 @@ Planned folders (create when the phase starts): `src/stats/` (Phase 3), `src/bat
 Original Earth + a list of actions = the current world. Files: `src/territory/`.
 
 - **ORIGINAL WORLD** — Natural Earth shapes + `countries.json`. Never changed by gameplay.
-- **Actions** (`Territory.ts`): `paint {owner, circles}`, `erase {circles}`,
-  `resetCountry {id}`, `resetWorld`. Circles are flat `[x, y, r, …]` in world units. A brush
+- **Actions** (`Territory.ts`): `paint {owner, circles, within?}`, `erase {circles, within?}`,
+  `fill {id, owner?}` (whole country to owner; no owner = put it back), `resetCountry {id}`,
+  `resetWorld`. **Locked strokes** (decision 2026‑10‑17, Steve): a stroke only changes ONE
+  country's real land (`within`) — the first country it reaches that it can change (for Paint,
+  not the painter's own land). MapView locks it via `renderer.countryAt()`; before that the pen
+  just follows (`trackStroke`). Old saves without `within` still load and paint any land. Circles are flat `[x, y, r, …]` in world units. A brush
   stroke = one action (undo/redo work per stroke). Phase 4 adds `conquer`, Phase 5 `land`/`sea`.
 - **Drawing** (`MapRenderer.drawLayers`): consecutive actions by the same owner merge into one
   *layer*. A paint layer is drawn by clipping to *land under the strokes* (union of country
@@ -136,7 +140,15 @@ Original Earth + a list of actions = the current world. Files: `src/territory/`.
 - **Hit testing** checks layers newest-first, so tapping captured land selects its new owner.
 - **Gestures in paint mode**: one finger/left mouse paints; a second finger cancels the stroke
   (no trace) and pinches; right/middle mouse drag pans. Brush radius is in screen px
-  (S 7, M 16, L 34) converted to world units at stroke start.
+  (S 7, M 16, L 34) converted to world units at stroke start. Brush `F` = Fill: the tap
+  happens on finger-up so a two-finger move can still cancel it. A stroke is NOT a map
+  interaction (`begin()` isn't called), so it never triggers the slow full-redraw path.
+- **Smooth painting** (`MapRenderer.drawStrokeIncrement`): while a finger paints, the map is
+  drawn once, then each movement only paints the NEW circles on top (clipped to the locked
+  country, using the flag rectangle fixed at stroke start). The full redraw (labels, new
+  border lines, re-fitted flags) happens when the finger lifts. The brush outline is a CSS
+  element (`.brush-ring`), not canvas drawing, so following the finger never redraws the map.
+  Measured in headless Chromium: ~16 ms per brush movement vs ~45 ms per full frame.
 - **Performance notes**: measuring every cell took ~180 ms → replaced with running totals;
   clipping per country took ~160 ms for big strokes → one combined land clip per layer.
   Headless Chromium (software drawing) takes ~85 ms/frame for the whole map regardless; real

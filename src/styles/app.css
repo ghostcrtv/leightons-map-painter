@@ -126,8 +126,8 @@ button:disabled { cursor: default; }
 .topbar-actions { align-items: center; }
 /* Compact Help pill: small, but still a comfortable 44px tall for fingers. */
 .help-btn {
-  display: inline-flex; align-items: center; gap: 5px;
-  height: 44px; padding: 0 13px 0 10px;
+  display: inline-grid; place-items: center;
+  width: 44px; height: 44px; padding: 0;
   border: 0; border-radius: 999px;
   background: var(--gold); color: #2a1e00;
   font-size: 13px; font-weight: 900; letter-spacing: 0.08em;
@@ -560,6 +560,8 @@ button:disabled { cursor: default; }
 .brush-dot { display: block; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px rgba(0,0,0,0.5); flex-shrink: 0; }
 .brush-label { font-size: 10px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; color: var(--muted); }
 .brush-btn.active .brush-label { color: var(--gold); }
+.brush-btn.fill { margin-top: 4px; border-top: 1px solid var(--panel-border); border-radius: 0 0 14px 14px; padding-top: 4px; }
+.brush-btn.fill.active { border-radius: 14px; }
 
 .statusbar.paintbar { pointer-events: auto; padding: 6px 6px 6px 8px; gap: 10px; }
 .paint-who { display: flex; flex-direction: column; line-height: 1.1; font-weight: 800; font-size: 16px; white-space: nowrap; }
@@ -607,3 +609,16 @@ button:disabled { cursor: default; }
   /* Phones: the toolbar is long now, so let it scroll if needed. */
   .toolbar { max-height: calc(100vh - 220px); overflow-y: auto; }
 }
+
+/* Brush outline that follows the mouse/finger while painting (moved with CSS, not redrawn). */
+.brush-ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  will-change: transform;
+}
+.brush-ring.erase { border-style: dashed; }

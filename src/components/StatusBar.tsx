@@ -10,6 +10,7 @@ export function StatusBar() {
   const countries = useGame((s) => s.countries.length);
   const tool = useGame((s) => s.tool);
   const painter = useGame((s) => (s.painterId ? s.countryById.get(s.painterId) : undefined));
+  const fill = useGame((s) => s.brush === 'F');
   const setTool = useGame((s) => s.setTool);
   const setPainter = useGame((s) => s.setPainter);
 
@@ -21,7 +22,7 @@ export function StatusBar() {
           <>
             {flag ? <img src={flag} alt="" className="mini-flag" /> : <span className="mini-flag disputed" />}
             <span className="paint-who">
-              <small>Painting as</small>
+              <small>{fill ? 'Tap a country to give it to' : 'Painting as'}</small>
               {painter.name}
             </span>
             <button className="bar-btn" onClick={() => setPainter(null)}>
@@ -32,7 +33,8 @@ export function StatusBar() {
           <span className="paint-hint">Tap the country you want to paint with</span>
         ) : (
           <span className="paint-hint">
-            <strong>Erase:</strong> drag over land to put back the real borders
+            <strong>Erase:</strong>{' '}
+            {fill ? 'tap a country to put all of it back' : 'drag over land to put back the real borders'}
           </span>
         )}
         <span className="paint-tip">Two fingers move the map</span>

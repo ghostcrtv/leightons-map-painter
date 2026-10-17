@@ -19,8 +19,7 @@ export function TopBar() {
           <IconGear />
         </button>
         <button className="help-btn" onClick={() => setHelpOpen(true)} aria-label="Help: how to play" title="How to play">
-          <IconHelp width={18} height={18} />
-          <span>HELP</span>
+          <IconHelp width={24} height={24} strokeWidth={2.4} />
         </button>
       </div>
     </header>
