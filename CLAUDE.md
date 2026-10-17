@@ -56,14 +56,14 @@ src/data/           ORIGINAL world data types/loaders (read-only at runtime)
 src/map/            geometry.ts, camera.ts (pure, tested) · world.ts (load+project)
                     flags.ts · MapRenderer.ts (canvas) · gestures.ts (input) · MapView.tsx
 src/game/           store.ts (Zustand) · mapController.ts (UI → map bridge)
+src/territory/      TerritoryGrid.ts (measuring) · Territory.ts (actions, undo, layers, save) · session.ts
 src/components/     React UI: TopBar, CountrySearch, MapToolbar, CountryPanel, dialogs
 src/utils/          settings (localStorage), formatting
 src/styles/app.css  all styles
 tests/              Vitest tests
 ```
 
-Planned folders (create when the phase starts): `src/territory/` (Phase 2/5),
-`src/stats/` (Phase 3), `src/battles/` (Phase 4), `src/storage/` (Phase 6),
+Planned folders (create when the phase starts): `src/stats/` (Phase 3), `src/battles/` (Phase 4), `src/storage/` (Phase 6),
 `src/simulation/` (future auto-simulation).
 
 ## Map rendering approach
@@ -103,30 +103,44 @@ Planned folders (create when the phase starts): `src/territory/` (Phase 2/5),
 - **React never re-renders when the map moves.** The renderer is a plain class; the UI talks to
   it via `mapController` and store subscriptions.
 
-## Territory ownership system (design — build in Phase 2)
+## Territory ownership system (built in Phase 2)
 
-Hybrid of a country-level table and a painted grid, so untouched borders stay perfectly crisp
-and painting never needs polygon maths:
+Original Earth + a list of actions = the current world. Files: `src/territory/`.
 
-1. **ORIGINAL WORLD** — the Natural Earth shapes + `countries.json`. Never changes.
-2. **Region control table** — `controller: Record<originalCountryId, ownerId>`.
-   "Conquer entire country" just sets one entry (instant, tiny to save). Drawing uses the
-   owner's flag for that region.
-3. **Paint layer** — a sparse grid over the flat map (≈0.05 world units per cell, ~2–5 km),
-   stored as 256×256 tiles of `Uint16` owner indexes, created only where painted.
-   `0` = no change (fall back to 1–2), `WATER` = land removed. Land expansion / islands = owner
-   cells where the original was sea.
-   - Brush = stamp a circle into cells → cost is the brush size, not the world size.
-   - Undo/redo = each stroke records the previous values of the cells it changed.
-   - Drawing: per visible edited tile, build a mask per owner and draw that owner's flag
-     (using the owner's own flag rectangle so it lines up with its homeland) through the mask.
-     Borders of painted areas from marching squares, cached per tile, rebuilt only for tiles a
-     stroke touched.
-   - Territory size = original area adjusted by painted cells × cell area (with latitude
-     correction for the projection).
-4. **Saves** store only (2) and the non-empty tiles of (3), run-length encoded.
-
-Lookup order for "who owns this point": paint layer → region control table → original owner.
+- **ORIGINAL WORLD** — Natural Earth shapes + `countries.json`. Never changed by gameplay.
+- **Actions** (`Territory.ts`): `paint {owner, circles}`, `erase {circles}`,
+  `resetCountry {id}`, `resetWorld`. Circles are flat `[x, y, r, …]` in world units. A brush
+  stroke = one action (undo/redo work per stroke). Phase 4 adds `conquer`, Phase 5 `land`/`sea`.
+- **Drawing** (`MapRenderer.drawLayers`): consecutive actions by the same owner merge into one
+  *layer*. A paint layer is drawn by clipping to *land under the strokes* (union of country
+  outlines, even-odd) and to the circles (non-zero), then filling with the owner's flag. The
+  new border = the circles path stroked 2× wide *before* the fill, clipped to land that isn't
+  the painter's own (so no border appears when painting your own land). Erase/reset layers
+  redraw the original countries inside their area. Draw order: base flags → inner borders →
+  layers → coastlines (`world.inner` / `world.coast` come from topojson `mesh`, split into
+  map squares so only visible pieces are stroked).
+- **Flags on captured land** (`ownerGroups`): a painter's home flag clusters grow to include
+  nearby painted layers, and the flag is re-fitted over the whole group, so Germany + captured
+  Poland show one stretched German flag. Far-away painting gets its own flag.
+- **Measuring** (`TerritoryGrid.ts`): a 2048-wide grid (`original` / `current` Uint16 arrays,
+  0 = water, country index + 1) rasterised from the 'hi' polygons with a scanline fill. Each
+  row has a real-km² weight (Miller stretch). Running totals (`lostW`, `gained`) update per
+  changed cell, so stats are instant. Areas are scaled to each country's REAL area (gaining 25%
+  of Poland's cells = 25% of Poland's real km²; conquering all of Poland adds exactly Poland).
+  Countries smaller than ~3 cells are tracked by one point (`tinyOwner`). Painting only
+  changes land cells. Every change records a diff → exact undo.
+- **Territory display**: `formatTerritory(ratio)` → "187%" up to 999%, then "12×" ("bigger
+  than its real size"); 100% always means the REAL Earth (decision 2026‑10‑17, Steve).
+- **Autosave**: `session.ts` saves `territory.toJSON()` (`{formatVersion: 1, actions}`) to
+  localStorage key `lmp.v1.autosave` 0.8 s after each change. Phase 6 save slots must load this.
+- **Hit testing** checks layers newest-first, so tapping captured land selects its new owner.
+- **Gestures in paint mode**: one finger/left mouse paints; a second finger cancels the stroke
+  (no trace) and pinches; right/middle mouse drag pans. Brush radius is in screen px
+  (S 7, M 16, L 34) converted to world units at stroke start.
+- **Performance notes**: measuring every cell took ~180 ms → replaced with running totals;
+  clipping per country took ~160 ms for big strokes → one combined land clip per layer.
+  Headless Chromium (software drawing) takes ~85 ms/frame for the whole map regardless; real
+  devices use GPU canvas — check painting smoothness on the iPad.
 
 ## Battle calculation system (design — Phase 3/4)
 

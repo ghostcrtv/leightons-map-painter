@@ -11,9 +11,9 @@
  */
 import { geoArea, geoGraticule10, geoPath, type GeoPermissibleObjects } from 'd3-geo';
 import { geoMiller, geoProject } from 'd3-geo-projection';
-import { feature } from 'topojson-client';
+import { feature, mesh } from 'topojson-client';
 import type { Topology, GeometryCollection } from 'topojson-specification';
-import type { Feature, FeatureCollection, MultiPolygon, Polygon, Position } from 'geojson';
+import type { Feature, FeatureCollection, MultiLineString, MultiPolygon, Polygon, Position } from 'geojson';
 import polylabel from 'polylabel';
 import {
   bboxHeight,
@@ -57,6 +57,20 @@ export interface CountryShape {
   outline: Record<Lod, Path2D | null>;
   /** Which cluster each polygon belongs to (used to match the hi-detail data). */
   polyCluster: number[];
+  /**
+   * The country's flat polygons (the 'hi' detail once it has loaded). Used to measure
+   * territory — the ORIGINAL borders, never changed by gameplay.
+   */
+  polys: PlanarPolygon[];
+}
+
+/**
+ * Lines split into map squares, so only the squares on screen are drawn.
+ * (Stroking every border in the world at full detail would be slow on an iPad.)
+ */
+export interface LineBuckets {
+  size: number;
+  cells: Map<number, { box: BBox; path: Path2D }>;
 }
 
 export interface World {
@@ -64,16 +78,16 @@ export interface World {
   height: number;
   countries: CountryShape[];
   byId: Map<string, CountryShape>;
-  /**
-   * Every border and coastline in one path, so they stroke in a single call.
-   * (Not built for 'max': at that zoom only a few countries are visible, so the
-   * renderer strokes just those.)
-   */
-  borders: Record<Lod, Path2D | null>;
+  /** Borders between countries. Painted territory is drawn over these. */
+  inner: Record<Lod, LineBuckets | null>;
+  /** Coastlines. Drawn last, so painted land keeps a crisp coast. */
+  coast: Record<Lod, LineBuckets | null>;
   graticule: Path2D;
   ready: Record<Lod, boolean>;
   /** Capital cities, projected to world units. */
   capitals: { id: string; name: string; x: number; y: number }[];
+  /** Real-world area (km²) of one square of world units at a given height (y). */
+  km2PerUnit2At(y: number): number;
 }
 
 type CountriesTopo = Topology<{ countries: GeometryCollection<{ name: string }> }>;
@@ -145,7 +159,6 @@ export async function loadWorld(baseUrl: string, registry: CountryInfo[], capita
   const height = sphereBounds[1][1] - sphereBounds[0][1];
 
   const countries: CountryShape[] = [];
-  const borders = new Path2D();
 
   for (const f of fc.features) {
     const info = infoById.get(String(f.id));
@@ -165,8 +178,6 @@ export async function loadWorld(baseUrl: string, registry: CountryInfo[], capita
     for (const p of polys) if (polygonArea(p) > polygonArea(biggest)) biggest = p;
     const lp = polylabel(biggest, Math.max(bboxWidth(polygonBBox(biggest)), 0.01) / 50);
 
-    for (const p of polys) appendPolygon(borders, p);
-
     countries.push({
       info,
       box: polys.map(polygonBBox).reduce(unionBBox, emptyBBox()),
@@ -176,8 +187,10 @@ export async function loadWorld(baseUrl: string, registry: CountryInfo[], capita
       clusters,
       outline: { lo: pathOf(polys), hi: null, max: null },
       polyCluster: polyToCluster(groups, polys.length),
+      polys,
     });
   }
+  const lines = buildLines(topo, projection);
 
   const graticule = new Path2D();
   const graticuleGeo = geoGraticule10();
@@ -193,13 +206,77 @@ export async function loadWorld(baseUrl: string, registry: CountryInfo[], capita
     height,
     countries,
     byId: new Map(countries.map((c) => [c.info.id, c])),
-    borders: { lo: borders, hi: null, max: null },
+    inner: { lo: lines.inner, hi: null, max: null },
+    coast: { lo: lines.coast, hi: null, max: null },
     graticule,
     ready: { lo: true, hi: false, max: false },
     capitals: capitals.flatMap((c) => {
       const p = projection([c.lon, c.lat]);
       return p ? [{ id: c.id, name: c.name, x: p[0], y: p[1] }] : [];
     }),
+    km2PerUnit2At: makeAreaScale(projection, height),
+  };
+}
+
+/**
+ * The flat map stretches land near the poles. This returns how many real km² one
+ * square world unit covers at height y (precomputed in 0.5-unit steps).
+ */
+function makeAreaScale(projection: ReturnType<typeof makeProjection>, height: number) {
+  const R = 6371.0088;
+  const step = 0.5;
+  const table: number[] = [];
+  const degPerUnit = 360 / WORLD_WIDTH;
+  for (let y = 0; y <= height; y += step) {
+    const a = projection.invert?.([WORLD_WIDTH / 2, y]);
+    const b = projection.invert?.([WORLD_WIDTH / 2, y + step]);
+    if (!a || !b) {
+      table.push(0);
+      continue;
+    }
+    const band = R * R * (degPerUnit * Math.PI / 180) * Math.abs(Math.sin((a[1] * Math.PI) / 180) - Math.sin((b[1] * Math.PI) / 180));
+    table.push(band / step); // km² per (1 unit wide × 1 unit tall)
+  }
+  return (y: number) => table[Math.max(0, Math.min(table.length - 1, Math.floor(y / step)))];
+}
+
+const BUCKET = 20;
+const MAX_SEGMENT_POINTS = 64;
+
+/** Split projected lines into map squares (see LineBuckets). */
+function bucketLines(geom: MultiLineString | null): LineBuckets {
+  const out: LineBuckets = { size: BUCKET, cells: new Map() };
+  if (!geom) return out;
+  const cols = Math.ceil(WORLD_WIDTH / BUCKET) + 1;
+  for (const line of geom.coordinates) {
+    for (let start = 0; start < line.length - 1; start += MAX_SEGMENT_POINTS) {
+      const pts = line.slice(start, Math.min(line.length, start + MAX_SEGMENT_POINTS + 1));
+      const key = Math.floor(pts[0][1] / BUCKET) * cols + Math.floor(pts[0][0] / BUCKET);
+      let cell = out.cells.get(key);
+      if (!cell) {
+        cell = { box: emptyBBox(), path: new Path2D() };
+        out.cells.set(key, cell);
+      }
+      cell.path.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i < pts.length; i++) cell.path.lineTo(pts[i][0], pts[i][1]);
+      for (const p of pts) {
+        if (p[0] < cell.box.minX) cell.box.minX = p[0];
+        if (p[1] < cell.box.minY) cell.box.minY = p[1];
+        if (p[0] > cell.box.maxX) cell.box.maxX = p[0];
+        if (p[1] > cell.box.maxY) cell.box.maxY = p[1];
+      }
+    }
+  }
+  return out;
+}
+
+/** Borders between countries (shared edges) and coastlines (edges with only one country). */
+function buildLines(topo: CountriesTopo, projection: ReturnType<typeof makeProjection>) {
+  const obj = topo.objects.countries;
+  const project = (m: MultiLineString) => geoProject(m, projection) as MultiLineString | null;
+  return {
+    inner: bucketLines(project(mesh(topo, obj, (a, b) => a !== b))),
+    coast: bucketLines(project(mesh(topo, obj, (a, b) => a === b))),
   };
 }
 
@@ -216,7 +293,6 @@ export async function loadDetail(baseUrl: string, world: World, lod: 'hi' | 'max
   const topo = await fetchTopo(baseUrl, lod);
   const projection = makeProjection();
   const fc = feature(topo, topo.objects.countries) as FeatureCollection;
-  const borders = lod === 'hi' ? new Path2D() : null;
   let n = 0;
   for (const f of fc.features) {
     const shape = world.byId.get(String(f.id));
@@ -244,10 +320,12 @@ export async function loadDetail(baseUrl: string, world: World, lod: 'hi' | 'max
     shape.box = shape.clusters.map((c) => c.box).reduce(unionBBox, shape.box);
     shape.mainBox = shape.clusters[0].box;
     shape.outline[lod] = pathOf(polys);
-    if (borders) for (const p of polys) appendPolygon(borders, p);
+    if (lod === 'hi') shape.polys = polys;
     if (++n % 20 === 0) await yieldToBrowser();
   }
-  world.borders[lod] = borders;
+  const lines = buildLines(topo, projection);
+  world.inner[lod] = lines.inner;
+  world.coast[lod] = lines.coast;
   world.ready[lod] = true;
 }
 

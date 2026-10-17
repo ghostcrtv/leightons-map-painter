@@ -2,8 +2,8 @@
 
 ## Current phase
 
-**Phase 1: Working World Map — complete (waiting for iPad testing).**
-Next up: **Phase 2: Territory Painting.**
+**Phase 2: Territory Painting — complete (waiting for iPad testing).**
+Next up: **Phase 3: Country statistics** (Attack, Defense, Money, Military, Power Score).
 
 ## Completed
 
@@ -23,11 +23,18 @@ Next up: **Phase 2: Territory Painting.**
 - iPad Home Screen icon and full-screen app mode.
 - Automated tests for data and map maths.
 
+### Phase 2 — Territory painting
+- Paint tool with Small/Medium/Large brushes; captured land shows the painter's flag.
+- Borders move with the paint; coastlines stay crisp; painting never covers the sea.
+- Erase, Undo, Redo, Reset country, Reset whole world.
+- Territory score (% / "×" bigger), land gained/lost, "Conquered".
+- Autosave of the current world in the browser.
+- Paint Pin logo and Home Screen icon.
+
 ## Upcoming
 
 | Phase | What | Notes |
 |---|---|---|
-| 2 | Territory painting | Paint tool, Small/Medium/Large brush, erase/restore, undo/redo, reset country, reset world |
 | 3 | Country statistics | Attack, Defense, Money, Military, Power Score; rankings; edit stats; spreadsheet import |
 | 4 | Battles | Quick Battle, Full Invasion, Border Conflict, Custom; results and conquest choices |
 | 5 | Land expansion | Paint into water, coastline expansion, island creation, land removal |
@@ -44,7 +51,9 @@ Deployment can happen earlier — any time after Phase 1 — so Leighton can pla
   (e.g. Monaco shows ~18 km², Vatican "under 1 km²"). The Vatican is a thin sliver in the
   data, so it shows as a dot.
 - Zoom stops at 300× because the free map data isn't accurate beyond that.
-- Logo: three concepts drawn (design/logo-concepts); waiting for a pick.
+- Erasing next to painted land doesn't draw a border line between them (colours still differ).
+- Painting smoothness not yet checked on a real iPad (test browser has no graphics chip).
+- Only one world is kept (autosave); multiple named saves come in Phase 6.
 - Flags are 4:3 versions (from flag-icons), so a few flags (e.g. Nepal, Switzerland) look
   slightly different from their official proportions.
 - Antarctica takes a lot of room at the bottom (normal for this projection).

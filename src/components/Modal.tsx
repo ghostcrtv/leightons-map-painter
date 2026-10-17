@@ -1,12 +1,16 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { IconClose } from './icons';
 
 export function Modal(props: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+  // Listen once, and always call the latest onClose (re-adding the listener on every
+  // render could drop the very key press that caused the render).
+  const onClose = useRef(props.onClose);
+  onClose.current = props.onClose;
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && props.onClose();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose.current();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [props]);
+  }, []);
 
   return (
     <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && props.onClose()}>

@@ -8,8 +8,12 @@
  *   mouse wheel / pinch on a Mac trackpad -> zoom; two-finger trackpad swipe -> pan
  *
  * Uses Pointer Events, which iPad Safari supports, so touch and mouse share one path.
- * Later phases (painting) will plug in here: when a paint tool is active, one-finger
- * drags will paint instead of pan, and two fingers will still move the map.
+ *
+ * With a paint tool on:
+ *   one finger / left mouse drag -> paints
+ *   two fingers                  -> move and zoom (a stroke already started is cancelled,
+ *                                   so touching down with two fingers never leaves a blob)
+ *   right or middle mouse drag   -> move the map
  */
 
 export interface GestureHandlers {
@@ -21,6 +25,12 @@ export interface GestureHandlers {
   hoverEnd(): void;
   begin(): void;
   end(vx: number, vy: number): void;
+  /** Is a paint tool on (so one finger paints instead of moving the map)? */
+  paintMode(): boolean;
+  paintStart(x: number, y: number): void;
+  paintMove(x: number, y: number): void;
+  paintEnd(): void;
+  paintCancel(): void;
 }
 
 /** A press that moves less than this is a tap, not a drag (bigger for fingers). */
@@ -43,6 +53,11 @@ export class GestureController {
   private lastTap: { x: number; y: number; t: number } | null = null;
   private active = false;
   private wheelTimer = 0;
+  /** A paint stroke is in progress. */
+  private stroking = false;
+  /** Right/middle mouse button: always moves the map. */
+  private mousePan = false;
+
 
   constructor(
     private el: HTMLElement,
@@ -54,6 +69,7 @@ export class GestureController {
     el.addEventListener('pointercancel', this.onUp);
     el.addEventListener('pointerleave', this.onLeave);
     el.addEventListener('wheel', this.onWheel, { passive: false });
+    el.addEventListener('contextmenu', prevent);
     // Stop iPad Safari from zooming the whole page instead of the map.
     document.addEventListener('gesturestart', prevent, { passive: false } as AddEventListenerOptions);
     document.addEventListener('gesturechange', prevent, { passive: false } as AddEventListenerOptions);
@@ -68,6 +84,7 @@ export class GestureController {
     el.removeEventListener('pointercancel', this.onUp);
     el.removeEventListener('pointerleave', this.onLeave);
     el.removeEventListener('wheel', this.onWheel);
+    el.removeEventListener('contextmenu', prevent);
     document.removeEventListener('gesturestart', prevent);
     document.removeEventListener('gesturechange', prevent);
   }
@@ -78,7 +95,7 @@ export class GestureController {
   }
 
   private onDown = (e: PointerEvent) => {
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.pointerType === 'mouse' && e.button > 2) return;
     try {
       this.el.setPointerCapture(e.pointerId);
     } catch {
@@ -93,8 +110,17 @@ export class GestureController {
     if (this.pointers.size === 1) {
       this.start = { ...p, t: performance.now(), id: e.pointerId };
       this.moved = false;
+      this.mousePan = e.pointerType === 'mouse' && e.button !== 0;
       this.samples = [{ ...p, t: performance.now() }];
+      if (this.h.paintMode() && !this.mousePan) {
+        this.stroking = true;
+        this.h.paintStart(p.x, p.y);
+      }
     } else if (this.pointers.size === 2) {
+      if (this.stroking) {
+        this.stroking = false;
+        this.h.paintCancel();
+      }
       this.moved = true; // a two-finger gesture is never a tap
       this.pinch = this.pinchState();
     }
@@ -108,6 +134,12 @@ export class GestureController {
       return;
     }
     this.pointers.set(e.pointerId, { ...p, type: e.pointerType });
+
+    if (this.stroking) {
+      this.h.paintMove(p.x, p.y);
+      this.h.hover(p.x, p.y);
+      return;
+    }
 
     if (this.pointers.size >= 2) {
       const now = this.pinchState();
@@ -134,6 +166,17 @@ export class GestureController {
     const p = this.local(e);
     const had = this.pointers.delete(e.pointerId);
     if (!had) return;
+
+    if (this.stroking && this.pointers.size === 0) {
+      this.stroking = false;
+      if (e.type === 'pointerup') this.h.paintEnd();
+      else this.h.paintCancel();
+      this.active = false;
+      this.start = null;
+      this.h.end(0, 0);
+      if (e.pointerType !== 'mouse') this.h.hoverEnd();
+      return;
+    }
 
     if (this.pointers.size === 1) {
       // Lifting one finger of a pinch: carry on panning with the other without a jump.

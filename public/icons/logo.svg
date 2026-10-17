@@ -1,18 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <clipPath id="g"><circle cx="60" cy="64" r="46"/></clipPath>
+    <clipPath id="p"><path d="M256 470 C200 390 120 310 120 216 A136 136 0 0 1 392 216 C392 310 312 390 256 470Z"/></clipPath>
   </defs>
-  <rect width="128" height="128" rx="28" fill="#121b29"/>
-  <circle cx="60" cy="64" r="46" fill="#2a6f97"/>
-  <g clip-path="url(#g)">
-    <path fill="#e94b3c" d="M22 30c10-8 26-10 36-4 6 4 4 12-2 16-8 5-6 14-14 16-9 2-16-4-20-12-3-6-5-11 0-16z"/>
-    <path fill="#fff" d="M22 30c10-8 26-10 36-4l-4 6c-9-4-21-3-29 3z"/>
-    <path fill="#35a853" d="M66 22c12 0 24 6 30 16 4 7-2 12-9 11-7-1-10 6-17 5-8-1-10-9-8-16 1-6-2-14 4-16z"/>
-    <path fill="#ffd34d" d="M52 70c8-3 18 0 22 8 4 9 0 20-6 28-5 6-14 4-16-3-2-8-8-12-8-20 0-6 3-11 8-13z"/>
-    <path fill="#1d3f8f" d="M52 70c8-3 18 0 22 8l-7 4c-3-5-9-7-14-5z"/>
-    <path fill="#e94b3c" d="M84 70c8 0 14 6 14 14 0 7-6 10-11 8-6-2-10-8-9-14 0-5 2-8 6-8z"/>
+  <rect width="512" height="512" rx="112" fill="#13203a"/>
+  <ellipse cx="256" cy="472" rx="70" ry="14" fill="#000" opacity=".35"/>
+  <g clip-path="url(#p)">
+    <rect x="100" y="70" width="320" height="420" fill="#ffcd3c"/>
+    <!-- painted brush strokes: territory being painted across -->
+    <path d="M60 150 C160 120 300 170 460 130 L460 210 C320 240 170 200 60 236Z" fill="#e8463a"/>
+    <path d="M60 236 C170 200 320 240 460 210 L460 300 C330 330 170 290 60 320Z" fill="#fff"/>
+    <path d="M60 320 C170 290 330 330 460 300 L460 500 L60 500Z" fill="#1d3f8f"/>
+    <path d="M60 130 C130 110 170 116 230 128 L232 150 C170 140 120 136 60 152Z" fill="#fff" opacity=".35"/>
   </g>
-  <circle cx="60" cy="64" r="46" fill="none" stroke="#0b1320" stroke-width="3"/>
-  <path fill="#ffd34d" d="m110 14 6 6-36 40-8 2 2-8z"/>
-  <path fill="#c47d14" d="M74 56c-7 0-12 5-12 12 0 5-3 8-8 9 6 6 22 5 26-6 2-6-1-12-6-15z"/>
+  <path d="M256 470 C200 390 120 310 120 216 A136 136 0 0 1 392 216 C392 310 312 390 256 470Z" fill="none" stroke="#0a1324" stroke-width="14"/>
+  <circle cx="256" cy="214" r="62" fill="#13203a"/>
+  <path transform="translate(231.82 250) scale(0.10400 -0.10400)" d="M40 59V681Q40 702 141.5 702.0Q243 702 243 681V191H397Q415 191 422 144Q425 121 425.0 97.0Q425 73 422 48Q414 0 396 0H88Q66 0 53.0 18.0Q40 36 40 59Z" fill="#ffcd3c"/>
+  <!-- paint drip -->
+  <path d="M368 280 q6 26 0 40 a10 10 0 0 1 -18 0 q-4-14 2-30z" fill="#1d3f8f" stroke="#0a1324" stroke-width="6"/>
 </svg>

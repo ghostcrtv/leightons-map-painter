@@ -5,7 +5,7 @@ import { writeSetting } from '../utils/settings';
 const STEPS = [
   {
     title: 'Welcome, Leighton!',
-    text: 'This is your world. Every country shows its own flag. Soon you’ll paint borders, build islands and fight battles.',
+    text: 'This is your world. Every country shows its own flag. Paint borders to grab land, and soon you’ll build islands and fight battles too.',
     emoji: '🌍',
   },
   {
@@ -17,6 +17,11 @@ const STEPS = [
     title: 'Tap a country',
     text: 'Tap any country to see its flag and size. Can’t find one? Type its name in the search box at the top.',
     emoji: '🗺️',
+  },
+  {
+    title: 'Paint the world',
+    text: 'Tap a country, then Paint Territory. Slide one finger over a neighbour to make it yours. Two fingers move the map.',
+    emoji: '🖌️',
   },
   {
     title: 'Need help?',

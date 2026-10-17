@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useGame } from '../game/store';
 import { mapController } from '../game/mapController';
-import { formatArea, formatAreaMiles, ordinal } from '../utils/format';
+import { formatArea, formatAreaMiles, formatKm2, formatTerritory, ordinal } from '../utils/format';
 import {
   IconBrush,
   IconChevronDown,
   IconChevronUp,
   IconClose,
   IconLock,
+  IconReset,
   IconShield,
   IconSliders,
   IconSword,
@@ -26,7 +27,11 @@ export function CountryPanel() {
   const collapsed = useGame((s) => s.panelCollapsed);
   const setCollapsed = useGame((s) => s.setPanelCollapsed);
   const select = useGame((s) => s.select);
+  const territoryReady = useGame((s) => s.territoryReady);
+  useGame((s) => s.territoryVersion); // re-read the numbers whenever territory changes
+  const [confirmReset, setConfirmReset] = useState(false);
   const ref = useRef<HTMLElement>(null);
+  useEffect(() => setConfirmReset(false), [selectedId]);
 
   const country = selectedId ? countryById.get(selectedId) : undefined;
 
@@ -58,11 +63,26 @@ export function CountryPanel() {
   const flagUrl = mapController.flagUrl(country.flag);
   const rank = rankById.map.get(country.id);
 
+  const stats = territoryReady ? mapController.stats(country.id) : null;
+  const ratio = stats && stats.originalKm2 > 0 ? stats.currentKm2 / stats.originalKm2 : 1;
+  const conquered = stats ? mapController.isConquered(country.id) : false;
+  const changed = !!stats && (stats.gainedKm2 >= 1 || stats.lostKm2 >= 1);
+  const shown = formatTerritory(ratio);
+  // The bar's track is "real size" or "now", whichever is bigger; extra land shows in a second colour.
+  const track = Math.max(ratio, 1);
+  const startPainting = () => {
+    const st = useGame.getState();
+    st.setPainter(country.id);
+    st.setTool('paint');
+    setCollapsed(true);
+  };
+
   if (collapsed) {
     return (
       <button ref={ref as React.RefObject<HTMLButtonElement>} className="panel-chip" onClick={() => setCollapsed(false)}>
         {flagUrl ? <img src={flagUrl} alt="" className="mini-flag" /> : <span className="mini-flag disputed" />}
         <span className="chip-name">{country.name}</span>
+        {changed && <span className="chip-pct">{conquered ? 'Conquered' : shown.big}</span>}
         <IconChevronUp width={18} height={18} />
       </button>
     );
@@ -91,11 +111,35 @@ export function CountryPanel() {
       <div className="panel-body">
         <section className="stat-card">
           <h3>Territory</h3>
-          <div className="big-number">100%</div>
+          <div className={`big-number${conquered ? ' conquered' : ''}`}>{shown.big}</div>
           <div className="meter" aria-hidden>
-            <span style={{ width: '100%' }} />
+            <span style={{ width: `${(Math.min(ratio, 1) / track) * 100}%` }} />
+            {ratio > 1 && <span className="extra" style={{ width: `${((ratio - 1) / track) * 100}%` }} />}
           </div>
-          <p className="muted">of its original land · nothing gained or lost yet</p>
+          <p className="muted">
+            {conquered ? 'Conquered! It has no land left.' : shown.note}
+            {!changed && !conquered && ' · nothing gained or lost yet'}
+          </p>
+          {changed && (
+            <dl className="facts changes">
+              {stats!.gainedKm2 >= 1 && (
+                <div>
+                  <dt>Land gained</dt>
+                  <dd className="gain">+{formatKm2(stats!.gainedKm2)}</dd>
+                </div>
+              )}
+              {stats!.lostKm2 >= 1 && (
+                <div>
+                  <dt>Land lost</dt>
+                  <dd className="loss">−{formatKm2(stats!.lostKm2)}</dd>
+                </div>
+              )}
+              <div>
+                <dt>Size now</dt>
+                <dd>{formatArea(stats!.currentKm2)}</dd>
+              </div>
+            </dl>
+          )}
           <dl className="facts">
             {country.capital && (
               <div>
@@ -104,7 +148,7 @@ export function CountryPanel() {
               </div>
             )}
             <div>
-              <dt>Size</dt>
+              <dt>{changed ? 'Real size' : 'Size'}</dt>
               <dd>
                 {formatArea(country.areaKm2)}
                 <small>{formatAreaMiles(country.areaKm2)}</small>
@@ -139,15 +183,46 @@ export function CountryPanel() {
         </section>
 
         <div className="actions">
-          <button className="action primary" onClick={() => mapController.flyTo(country.id)}>
-            <IconTarget /> Zoom to {country.name.length > 16 ? 'country' : country.name}
+          <button className="action primary" onClick={startPainting} disabled={!territoryReady || country.disputed}>
+            <IconBrush /> Paint Territory
           </button>
+          <button className="action" onClick={() => mapController.flyTo(country.id)}>
+            <IconTarget /> Zoom to it
+          </button>
+          {changed ? (
+            <button className="action" onClick={() => setConfirmReset(true)}>
+              <IconReset /> Reset borders
+            </button>
+          ) : (
+            <SoonAction icon={<IconWaves />} label="Expand Land" />
+          )}
           <SoonAction icon={<IconSword />} label="Attack" />
           <SoonAction icon={<IconShield />} label="Defend" />
-          <SoonAction icon={<IconBrush />} label="Paint Territory" />
-          <SoonAction icon={<IconWaves />} label="Expand Land" />
           <SoonAction icon={<IconSliders />} label="Edit Stats" />
+          {changed && <SoonAction icon={<IconWaves />} label="Expand Land" />}
         </div>
+        {confirmReset && (
+          <div className="confirm" role="alertdialog" aria-label="Reset borders?">
+            <p>
+              Put <strong>{country.name}</strong> back to its real borders? Land it took goes back to its owners. You can undo
+              this.
+            </p>
+            <div className="confirm-buttons">
+              <button className="btn secondary" onClick={() => setConfirmReset(false)}>
+                Cancel
+              </button>
+              <button
+                className="btn primary"
+                onClick={() => {
+                  mapController.resetCountry(country.id);
+                  setConfirmReset(false);
+                }}
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   );

@@ -16,12 +16,19 @@ const TOPICS: Topic[] = [
   { title: 'Capital cities', ready: true, text: 'Zoom in and capital cities appear as yellow stars with their names. You can turn them off in Settings (the gear button).' },
   { title: 'Find a country by name', ready: true, text: 'Type its name in the search box at the top, then tap it in the list. The map flies right there.' },
   { title: 'Country information', ready: true, text: 'The country card shows the flag, how big the country is, and how much of its land it still has. Tap the arrow to shrink the card, or × to close it.' },
-  { title: 'Paint territory and change borders', ready: false, text: 'Pick a country, choose the Paint brush, and paint over a neighbour. That land becomes yours and shows your flag.' },
+  { title: 'Paint territory', ready: true, text: 'Tap a country, then tap Paint Territory (or the brush on the left). Now slide one finger over a neighbour: that land becomes yours and shows your flag. The borders move too!' },
+  { title: 'Brush sizes', ready: true, text: 'While painting, pick Small, Medium or Large next to the toolbar. Zoom in to paint carefully, zoom out for giant land grabs.' },
+  { title: 'Move the map while painting', ready: true, text: 'Use TWO fingers to move or zoom the map while painting. On a computer, drag with the right mouse button.' },
+  { title: 'Change who is painting', ready: true, text: 'Tap Change in the bar at the bottom, then tap a different country.' },
+  { title: 'Oops! Undo and Redo', ready: true, text: 'The curved arrows on the left take back your last change, or bring it back again.' },
+  { title: 'Erase', ready: true, text: 'Pick the eraser and drag over land to put back the real borders there.' },
+  { title: 'Territory score', ready: true, text: 'Every country starts at 100% of its real land. Grab land and it goes up (187% means almost twice as big!). Really huge? It shows 12× bigger. Lose it all and the country is Conquered.' },
   { title: 'Power ratings', ready: false, text: 'Every country gets Attack, Defense, Money and Military ratings, plus one Power Score to compare countries quickly.' },
   { title: 'Battles', ready: false, text: 'Pick an attacker and a defender and press BATTLE. Stronger countries usually win, but surprises can happen! Then you decide what happens to the land.' },
   { title: 'Expand land and create islands', ready: false, text: 'Paint new land into the ocean from a coastline, or make a brand-new island for any country.' },
-  { title: 'Save and load worlds', ready: false, text: 'Save your world with a name, load it later, and make backup files so you never lose it.' },
-  { title: 'Reset the map', ready: false, text: 'Put any country, or the whole world, back to the real Earth.' },
+  { title: 'Your world is remembered', ready: true, text: 'Your painting is kept on this iPad automatically, even if you close the game.' },
+  { title: 'Save and load worlds', ready: false, text: 'Save lots of different worlds with names, load them later, and make backup files so you never lose them.' },
+  { title: 'Reset the map', ready: true, text: 'Tap a country and choose Reset borders to put just that country back. To reset everything, open Settings (the gear) and tap Reset whole world.' },
 ];
 
 export function HelpDialog() {

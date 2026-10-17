@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0 — 2026-10-17 — Phase 2: Territory painting
+
+- New: Paint tool — pick a country and paint over neighbours; the land becomes theirs, shows
+  their flag (stretched over home + captured land) and gets a new border.
+- New: Small / Medium / Large brushes; brush outline under the mouse.
+- New: Erase tool (puts back real borders), Undo / Redo (buttons and Cmd/Ctrl+Z).
+- New: Reset borders for one country (country card) and Reset whole world (Settings).
+- New: territory score in the country card: % of real land, "12×" when huge, land gained /
+  lost in km², "Conquered" at 0%. Real Earth is always 100%.
+- New: the world is autosaved in the browser, so a reload keeps the painting.
+- New: the Paint Pin logo is now the app icon and Home Screen icon; Lilita One title font.
+- Changed: two fingers move the map while painting; a stray second finger cancels the stroke.
+- Fixed: Escape now closes Settings; keys no longer reach the map while a window is open.
+
 ## 0.2.0 — 2026-10-17 — Phase 1 polish
 
 - Fixed: small islands now each show a whole mini flag instead of a sliver of a big one;

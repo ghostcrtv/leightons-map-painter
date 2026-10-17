@@ -4,6 +4,7 @@
  */
 import type { MapRenderer } from '../map/MapRenderer';
 import type { FlagLibrary } from '../map/flags';
+import { getTerritory } from '../territory/session';
 
 let renderer: MapRenderer | null = null;
 let flagLibrary: FlagLibrary | null = null;
@@ -21,4 +22,11 @@ export const mapController = {
   flyTo: (id: string) => requestAnimationFrame(() => requestAnimationFrame(() => renderer?.flyToCountry(id))),
   setInsets: (insets: Parameters<MapRenderer['setInsets']>[0]) => renderer?.setInsets(insets),
   flagUrl: (code: string | null) => (code && flagLibrary?.has(code) ? flagLibrary.largeUrl(code) : null),
+  undo: () => getTerritory()?.undo(),
+  redo: () => getTerritory()?.redo(),
+  resetCountry: (id: string) => getTerritory()?.resetCountry(id),
+  resetWorld: () => getTerritory()?.resetWorld(),
+  stats: (id: string) => getTerritory()?.statsFor(id) ?? null,
+  isConquered: (id: string) => getTerritory()?.isConquered(id) ?? false,
+  worldChanged: () => getTerritory()?.changedFromEarth ?? false,
 };

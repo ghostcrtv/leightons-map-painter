@@ -8,7 +8,11 @@ import { create } from 'zustand';
 import type { CountryInfo } from '../data/countries';
 import { readSetting, writeSetting } from '../utils/settings';
 
-export type Tool = 'select'; // Phase 2+: 'paint' | 'erase' | 'expand' | 'island'
+/** Phase 5 adds 'expand' and 'island'. */
+export type Tool = 'select' | 'paint' | 'erase';
+export type BrushSize = 'S' | 'M' | 'L';
+/** Brush radius in screen pixels: the brush looks the same size at any zoom. */
+export const BRUSH_PX: Record<BrushSize, number> = { S: 7, M: 16, L: 34 };
 export type GameMode = 'sandbox'; // Later: 'conquest'
 
 interface GameState {
@@ -20,6 +24,15 @@ interface GameState {
 
   mode: GameMode;
   tool: Tool;
+  brush: BrushSize;
+  /** The country that paints when using the Paint tool. */
+  painterId: string | null;
+  /** True once the territory engine is ready (shortly after the map appears). */
+  territoryReady: boolean;
+  /** Bumps when territory changes, so panels re-read the numbers. */
+  territoryVersion: number;
+  canUndo: boolean;
+  canRedo: boolean;
   selectedId: string | null;
   panelCollapsed: boolean;
 
@@ -30,6 +43,11 @@ interface GameState {
   showBorders: boolean;
   showCapitals: boolean;
 
+  setTool(t: Tool): void;
+  setBrush(b: BrushSize): void;
+  setPainter(id: string | null): void;
+  territoryChanged(info: { canUndo: boolean; canRedo: boolean }): void;
+  setTerritoryReady(): void;
   setLoading(message: string): void;
   setError(message: string): void;
   setReady(countries: CountryInfo[]): void;
@@ -52,6 +70,12 @@ export const useGame = create<GameState>((set) => ({
 
   mode: 'sandbox',
   tool: 'select',
+  brush: readSetting<BrushSize>('brush', 'M'),
+  painterId: null,
+  territoryReady: false,
+  territoryVersion: 0,
+  canUndo: false,
+  canRedo: false,
   selectedId: null,
   panelCollapsed: false,
 
@@ -62,6 +86,14 @@ export const useGame = create<GameState>((set) => ({
   showBorders: readSetting('showBorders', true),
   showCapitals: readSetting('showCapitals', true),
 
+  setTool: (tool) => set({ tool }),
+  setBrush: (brush) => {
+    writeSetting('brush', brush);
+    set({ brush });
+  },
+  setPainter: (painterId) => set({ painterId }),
+  territoryChanged: ({ canUndo, canRedo }) => set((s) => ({ territoryVersion: s.territoryVersion + 1, canUndo, canRedo })),
+  setTerritoryReady: () => set({ territoryReady: true }),
   setLoading: (loadingMessage) => set({ loadingMessage }),
   setError: (error) => set({ status: 'error', error }),
   setReady: (countries) =>

@@ -1,13 +1,44 @@
+import { useState } from 'react';
+import { mapController } from '../game/mapController';
 import { useGame } from '../game/store';
 import { Modal } from './Modal';
 
 export function SettingsDialog() {
   const s = useGame();
+  const [confirm, setConfirm] = useState(false);
+  const changed = s.territoryReady && mapController.worldChanged();
   return (
     <Modal title="Settings" onClose={() => s.setSettingsOpen(false)}>
       <Toggle label="Show country names" checked={s.showLabels} onChange={s.setShowLabels} />
       <Toggle label="Show capital cities" hint="Yellow stars, when you zoom in" checked={s.showCapitals} onChange={s.setShowCapitals} />
       <Toggle label="Show borders" checked={s.showBorders} onChange={s.setShowBorders} />
+      <div className="settings-section">
+        <h3>World</h3>
+        {!confirm ? (
+          <button className="btn danger" disabled={!changed} onClick={() => setConfirm(true)}>
+            Reset whole world
+          </button>
+        ) : (
+          <div className="confirm" role="alertdialog" aria-label="Reset whole world?">
+            <p>Put every country back to its real borders? You can still undo it.</p>
+            <div className="confirm-buttons">
+              <button className="btn secondary" onClick={() => setConfirm(false)}>
+                Cancel
+              </button>
+              <button
+                className="btn danger"
+                onClick={() => {
+                  mapController.resetWorld();
+                  setConfirm(false);
+                }}
+              >
+                Reset world
+              </button>
+            </div>
+          </div>
+        )}
+        {!changed && <p className="muted">The world matches the real Earth.</p>}
+      </div>
       <p className="muted small-print">
         Map data: Natural Earth (public domain). Flags: flag-icons (MIT licence). Country sizes are approximate.
       </p>

@@ -32,7 +32,9 @@ import {
 } from './camera';
 import { bboxContains, bboxHeight, bboxIntersects, bboxWidth, type BBox } from './geometry';
 import type { FlagLibrary } from './flags';
-import type { CountryShape, Lod, World } from './world';
+import type { CountryShape, Lod, World, LineBuckets } from './world';
+import type { Layer, Territory } from '../territory/Territory';
+import { fitFlagRect, unionBBox, emptyBBox, type Rect } from './geometry';
 
 export interface Insets {
   top: number;
@@ -104,6 +106,15 @@ export class MapRenderer {
   private momentum: { vx: number; vy: number; last: number } | null = null;
 
   private markers: Marker[] = [];
+  private territory: Territory | null = null;
+  private unsubscribeTerritory: (() => void) | null = null;
+  /** Drawing paths for painted layers, by layer key. */
+  private layerPaths = new Map<string, Path2D>();
+  /** Where each country's flag goes once it has painted new land (see ownerGroups). */
+  private groups: { version: number; cluster: Map<string, Rect[]>; layer: Map<string, Rect> } | null = null;
+  private conquered: { version: number; ids: Set<string> } = { version: -1, ids: new Set() };
+  /** Brush outline under the finger/mouse while painting (screen px). */
+  private brush: { x: number; y: number; r: number; erase: boolean } | null = null;
   /** Set by MapView: called once when the player zooms in far enough to need full detail. */
   onNeedMaxDetail: (() => void) | null = null;
   private labelWidth = new Map<string, number>();
@@ -125,7 +136,32 @@ export class MapRenderer {
     this.resize();
   }
 
+  /** Connect the current-world model (Phase 2). The map redraws whenever it changes. */
+  setTerritory(t: Territory | null) {
+    this.unsubscribeTerritory?.();
+    this.territory = t;
+    this.unsubscribeTerritory = t ? t.subscribe(() => this.invalidate()) : null;
+    this.invalidate();
+  }
+
+  setBrushPreview(b: { x: number; y: number; r: number; erase: boolean } | null) {
+    const same = b && this.brush && b.x === this.brush.x && b.y === this.brush.y && b.r === this.brush.r && b.erase === this.brush.erase;
+    if (same || (!b && !this.brush)) return;
+    this.brush = b;
+    this.invalidate();
+  }
+
+  /** Convert a screen point to world units (used by the paint tools). */
+  toWorld(sx: number, sy: number): [number, number] {
+    return screenToWorld(this.cam, sx, sy);
+  }
+
+  get scale() {
+    return this.cam.scale;
+  }
+
   destroy() {
+    this.unsubscribeTerritory?.();
     cancelAnimationFrame(this.raf);
     this.flags.onImageLoaded = () => {};
   }
@@ -219,11 +255,25 @@ export class MapRenderer {
     const candidates = this.world.countries
       .filter((c) => bboxContains(c.box, wx, wy))
       .sort((a, b) => a.area - b.area);
+    let base: string | null = null;
     for (const c of candidates) {
       const path = this.pick(c.outline, lod);
-      if (this.hitCtx.isPointInPath(path, wx, wy, 'evenodd')) return c.info.id;
+      if (this.hitCtx.isPointInPath(path, wx, wy, 'evenodd')) {
+        base = c.info.id;
+        break;
+      }
     }
-    return null;
+    if (!base || !this.territory) return base;
+    // Painted land belongs to whoever painted it last.
+    const layers = this.territory.layers();
+    for (let i = layers.length - 1; i >= 0; i--) {
+      const l = layers[i];
+      const clip = this.layerClip(l, lod);
+      if (!clip || !bboxContains(clip.box, wx, wy)) continue;
+      if (!this.hitCtx.isPointInPath(clip.path, wx, wy, 'nonzero')) continue;
+      return l.kind === 'paint' ? l.owner! : base;
+    }
+    return base;
   }
 
   // ---------------------------------------------------------------- camera
@@ -456,44 +506,31 @@ export class MapRenderer {
     ctx.strokeStyle = 'rgba(255,255,255,0.10)';
     ctx.stroke(this.world.graticule);
 
-    // Countries: each flag clipped to its land.
+    // 1. The original Earth: each country's flag clipped to its land.
     ctx.imageSmoothingEnabled = true;
     for (const c of this.world.countries) {
-      if (!bboxIntersects(c.box, visible)) continue;
-      const code = c.info.flag;
-      for (const cl of c.clusters) {
-        if (!bboxIntersects(cl.box, visible)) continue;
-        const path = this.pick(cl.path, lod);
-        const px = Math.max(bboxWidth(cl.box), bboxHeight(cl.box)) * s;
-        const src = px >= MIN_FLAG_PX && this.flags.has(code) ? this.flags.source(code, cl.flagRect.w * s) : null;
-        if (!src) {
-          ctx.fillStyle = this.flags.averageColor(code);
-          ctx.fill(path, 'evenodd');
-          continue;
-        }
-        ctx.save();
-        ctx.clip(path, 'evenodd');
-        // Backup fill in the flag's main colour, so no bit of land is ever left empty.
-        ctx.fillStyle = this.flags.averageColor(code);
-        ctx.fill(path, 'evenodd');
-        const r = cl.flagRect;
-        ctx.drawImage(src.image, src.sx, src.sy, src.sw, src.sh, r.x, r.y, r.w, r.h);
-        ctx.restore();
-      }
+      if (bboxIntersects(c.box, visible)) this.drawCountry(ctx, c, lod, s, visible);
     }
 
-    // Borders and coastlines.
+    const width = clamp(0.6 + Math.log2(zoomRel) * 0.25, 0.6, 1.6);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    // 2. Borders between countries (painted land is drawn over these).
     if (this.options.showBorders) {
-      ctx.lineJoin = 'round';
       ctx.strokeStyle = BORDER;
-      const width = clamp(0.6 + Math.log2(zoomRel) * 0.25, 0.6, 1.6);
       ctx.lineWidth = width / s;
-      const all = this.world.borders[lod];
-      if (all) ctx.stroke(all); // one stroke for the whole world
-      else {
-        // Full detail: stroke only the countries on screen.
-        for (const c of this.world.countries) if (bboxIntersects(c.box, visible)) ctx.stroke(this.pick(c.outline, lod));
-      }
+      this.strokeLines(ctx, this.world.inner, lod, visible);
+    }
+
+    // 3. Painted territory, oldest first.
+    if (this.territory) this.drawLayers(ctx, lod, s, visible, width);
+
+    // 4. Coastlines on top, so painted land keeps a crisp coast.
+    if (this.options.showBorders) {
+      ctx.strokeStyle = BORDER;
+      ctx.lineWidth = width / s;
+      this.strokeLines(ctx, this.world.coast, lod, visible);
       // Small countries (Gibraltar, Monaco, Andorra…) get a bolder outline so they stand out.
       ctx.lineWidth = (width + 1) / s;
       ctx.strokeStyle = 'rgba(10, 14, 22, 0.95)';
@@ -501,6 +538,7 @@ export class MapRenderer {
         const px = Math.max(bboxWidth(c.box), bboxHeight(c.box)) * s;
         if (px < SMALL_OUTLINE_PX[0] || px > SMALL_OUTLINE_PX[1] || c.clusters.length > 3) continue;
         if (!bboxIntersects(c.box, visible)) continue;
+        if (this.isConquered(c.info.id)) continue;
         ctx.stroke(this.pick(c.outline, lod));
       }
     }
@@ -522,11 +560,28 @@ export class MapRenderer {
       ctx.stroke(path);
       ctx.strokeStyle = SELECT;
       ctx.lineWidth = 3 / s;
+      // Borders have changed: the gold line shows the country's REAL borders, dashed.
+      const changed = this.territory?.layers().some((l) => l.owner === sel.info.id || l.resetId === sel.info.id || bboxIntersects(l.box, sel.box));
+      if (changed) ctx.setLineDash([8 / s, 6 / s]);
       ctx.stroke(path);
+      ctx.setLineDash([]);
     }
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.drawMarkers(ctx, cam, visible, zoomRel);
+    if (this.brush) {
+      const b = this.brush;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.stroke();
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash(b.erase ? [5, 4] : []);
+      ctx.strokeStyle = '#fff';
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
     // Labels share one list of placed boxes so names never overlap each other.
     const placed: LabelBox[] = [];
     if (this.options.showLabels) this.drawLabels(ctx, cam, visible, sel ?? null, placed);
@@ -636,6 +691,7 @@ export class MapRenderer {
     for (const c of this.world.countries) {
       if (count > 160) break;
       if (c === selected || !bboxIntersects(c.mainBox, visible)) continue;
+      if (this.isConquered(c.info.id)) continue;
       const bw = bboxWidth(c.mainBox) * s;
       const bh = bboxHeight(c.mainBox) * s;
       if (bw < 28 || bh < 10) continue;
@@ -645,6 +701,214 @@ export class MapRenderer {
       draw(c, Math.round(fs));
       count++;
     }
+  }
+
+  // ------------------------------------------------------------ drawing helpers
+
+  /** Draw one country's flag(s) clipped to its land (the original Earth). */
+  private drawCountry(ctx: CanvasRenderingContext2D, c: CountryShape, lod: Lod, s: number, visible: BBox) {
+    const code = c.info.flag;
+    const rects = this.ownerGroups().cluster.get(c.info.id);
+    c.clusters.forEach((cl, i) => {
+      if (!bboxIntersects(cl.box, visible)) return;
+      const path = this.pick(cl.path, lod);
+      const r = rects?.[i] ?? cl.flagRect;
+      this.fillWithFlag(ctx, path, 'evenodd', code, r, Math.max(bboxWidth(cl.box), bboxHeight(cl.box)) * s, s);
+    });
+  }
+
+  /** Fill a shape with a flag stretched over `rect` (or the flag's main colour when tiny). */
+  private fillWithFlag(
+    ctx: CanvasRenderingContext2D,
+    path: Path2D,
+    rule: CanvasFillRule,
+    code: string | null,
+    rect: Rect,
+    shapePx: number,
+    s: number,
+  ) {
+    const src = shapePx >= MIN_FLAG_PX && this.flags.has(code) ? this.flags.source(code, rect.w * s) : null;
+    if (!src) {
+      ctx.fillStyle = this.flags.averageColor(code);
+      ctx.fill(path, rule);
+      return;
+    }
+    ctx.save();
+    ctx.clip(path, rule);
+    // Backup fill in the flag's main colour, so no bit of land is ever left empty.
+    ctx.fillStyle = this.flags.averageColor(code);
+    ctx.fill(path, rule);
+    ctx.drawImage(src.image, src.sx, src.sy, src.sw, src.sh, rect.x, rect.y, rect.w, rect.h);
+    ctx.restore();
+  }
+
+  /** Stroke only the line pieces that are on screen. */
+  private strokeLines(ctx: CanvasRenderingContext2D, lines: Record<Lod, LineBuckets | null>, lod: Lod, visible: BBox) {
+    const set = (lod === 'max' ? lines.max ?? lines.hi : lod === 'hi' ? lines.hi : null) ?? lines.lo;
+    if (!set) return;
+    for (const cell of set.cells.values()) if (bboxIntersects(cell.box, visible)) ctx.stroke(cell.path);
+  }
+
+  /**
+   * Painted territory. Each painted area is drawn country by country: clipped to that
+   * country's land (so painting never covers the sea) and to the brush strokes, then
+   * filled with the painter's flag. A dark line around the strokes becomes the new border.
+   */
+  private drawLayers(ctx: CanvasRenderingContext2D, lod: Lod, s: number, visible: BBox, width: number) {
+    const layers = this.territory!.layers();
+    const live = new Set<string>();
+    for (const layer of layers) {
+      const clip = this.layerClip(layer, lod);
+      if (!clip) continue;
+      live.add(clip.cacheKey);
+      if (!bboxIntersects(clip.box, visible)) continue;
+      if (layer.kind === 'paint') {
+        const owner = this.world.byId.get(layer.owner!);
+        if (!owner) continue;
+        const rect = this.ownerGroups().layer.get(layer.key) ?? owner.clusters[0].flagRect;
+        const code = owner.info.flag;
+        const px = Math.max(bboxWidth(clip.box), bboxHeight(clip.box)) * s;
+        // Clip once to all the land under the strokes (painting never covers the sea).
+        const land = this.landUnder(clip.box, lod, `${clip.cacheKey}|${lod}`);
+        live.add(`${clip.cacheKey}|${lod}`);
+        if (this.options.showBorders) {
+          // The outer half of this line stays visible as the new border. It is drawn on
+          // other countries' land only: painting over your own land makes no border.
+          // (Adding the painter's own outline again cuts it out under the even-odd rule.)
+          const foreignKey = `${clip.cacheKey}|${lod}|not-own`;
+          live.add(foreignKey);
+          let foreign = this.layerPaths.get(foreignKey);
+          if (!foreign) {
+            foreign = new Path2D(land);
+            if (bboxIntersects(owner.box, clip.box)) foreign.addPath(this.pick(owner.outline, lod));
+            this.layerPaths.set(foreignKey, foreign);
+          }
+          ctx.save();
+          ctx.clip(foreign, 'evenodd');
+          ctx.strokeStyle = BORDER;
+          ctx.lineWidth = (width * 2) / s;
+          ctx.stroke(clip.path);
+          ctx.restore();
+        }
+        ctx.save();
+        ctx.clip(land, 'evenodd');
+        this.fillWithFlag(ctx, clip.path, 'nonzero', code, rect, Math.max(px, MIN_FLAG_PX), s);
+        ctx.restore();
+      } else {
+        // Erase / reset: draw the original countries again inside the area.
+        const area = { minX: Math.max(clip.box.minX, visible.minX), minY: Math.max(clip.box.minY, visible.minY), maxX: Math.min(clip.box.maxX, visible.maxX), maxY: Math.min(clip.box.maxY, visible.maxY) };
+        ctx.save();
+        ctx.clip(clip.path, 'nonzero');
+        for (const c of this.world.countries) {
+          if (!bboxIntersects(c.box, area)) continue;
+          this.drawCountry(ctx, c, lod, s, visible);
+        }
+        if (this.options.showBorders) {
+          ctx.strokeStyle = BORDER;
+          ctx.lineWidth = width / s;
+          this.strokeLines(ctx, this.world.inner, lod, area);
+        }
+        ctx.restore();
+      }
+    }
+    // Forget paths for layers that no longer exist.
+    if (this.layerPaths.size > live.size + 20) for (const k of this.layerPaths.keys()) if (!live.has(k)) this.layerPaths.delete(k);
+  }
+
+  /**
+   * All the land inside a box, as one path. Countries never overlap, so with the
+   * even-odd rule this is exactly "land" (and enclaves like Lesotho still work).
+   */
+  private landUnder(box: BBox, lod: Lod, cacheKey: string): Path2D {
+    let path = this.layerPaths.get(cacheKey);
+    if (path) return path;
+    path = new Path2D();
+    for (const c of this.world.countries) if (bboxIntersects(c.box, box)) path.addPath(this.pick(c.outline, lod));
+    this.layerPaths.set(cacheKey, path);
+    return path;
+  }
+
+  /** The shape a layer covers, as a drawing path (cached). */
+  private layerClip(layer: Layer, lod: Lod): { path: Path2D; box: BBox; cacheKey: string } | null {
+    if (layer.kind === 'resetCountry') {
+      const c = this.world.byId.get(layer.resetId!);
+      if (!c) return null;
+      const absorbs = layer.absorbs ?? [];
+      const cacheKey = `${layer.key}|${lod}|${absorbs.map((a) => a.key).join(',')}`;
+      let path = this.layerPaths.get(cacheKey);
+      if (!path) {
+        path = new Path2D();
+        path.addPath(this.pick(c.outline, lod));
+        for (const a of absorbs) path.addPath(this.circlesPath(a));
+        this.layerPaths.set(cacheKey, path);
+      }
+      const box = absorbs.reduce((b, a) => unionBBox(b, a.box), c.box);
+      return { path, box, cacheKey };
+    }
+    return { path: this.circlesPath(layer), box: layer.box, cacheKey: layer.key };
+  }
+
+  private circlesPath(layer: Layer): Path2D {
+    let path = this.layerPaths.get(layer.key);
+    if (path) return path;
+    path = new Path2D();
+    const c = layer.circles;
+    for (let i = 0; i < c.length; i += 3) {
+      path.moveTo(c[i] + c[i + 2], c[i + 1]);
+      path.arc(c[i], c[i + 1], c[i + 2], 0, Math.PI * 2);
+    }
+    this.layerPaths.set(layer.key, path);
+    return path;
+  }
+
+  /**
+   * One flag per country across its home AND the land it painted nearby, so Germany's
+   * flag stretches over Germany plus the captured part of Poland as one country.
+   * Land painted far from home gets its own whole flag.
+   */
+  private ownerGroups() {
+    const version = this.territory?.version ?? -1;
+    if (this.groups && this.groups.version === version) return this.groups;
+    const cluster = new Map<string, Rect[]>();
+    const layerRects = new Map<string, Rect>();
+    const layers = this.territory?.layers() ?? [];
+    const owners = new Set(layers.filter((l) => l.kind === 'paint').map((l) => l.owner!));
+    for (const id of owners) {
+      const c = this.world.byId.get(id);
+      if (!c) continue;
+      const groups = c.clusters.map((cl) => ({ box: { ...cl.box }, members: [] as string[], grown: false }));
+      for (const l of layers) {
+        if (l.kind !== 'paint' || l.owner !== id) continue;
+        let g = groups.find((g) => bboxIntersects(expandBox(g.box), l.box));
+        if (!g) {
+          g = { box: emptyBBox(), members: [], grown: true };
+          groups.push(g);
+        }
+        g.box = unionBBox(g.box, l.box);
+        g.grown = true;
+        g.members.push(l.key);
+      }
+      const rects = groups.map((g) => fitFlagRect(g.box));
+      cluster.set(
+        id,
+        c.clusters.map((cl, i) => (groups[i].grown ? rects[i] : cl.flagRect)),
+      );
+      groups.forEach((g, i) => g.members.forEach((k) => layerRects.set(k, rects[i])));
+    }
+    this.groups = { version, cluster, layer: layerRects };
+    return this.groups;
+  }
+
+  private isConquered(id: string): boolean {
+    const t = this.territory;
+    if (!t) return false;
+    // Measuring every country is too slow to do on every brush movement; refresh between strokes.
+    if (this.conquered.version !== t.version && !t.painting) {
+      const ids = new Set<string>();
+      for (const c of this.world.countries) if (t.isConquered(c.info.id)) ids.add(c.info.id);
+      this.conquered = { version: t.version, ids };
+    }
+    return this.conquered.ids.has(id);
   }
 
   /** Width of a label at a 1px font size (text width scales linearly). */
@@ -677,6 +941,12 @@ const isTiny = (c: CountryShape, scale: number) =>
 
 const overlaps = (placed: LabelBox[], b: LabelBox) =>
   placed.some((p) => p.x0 < b.x1 && p.x1 > b.x0 && p.y0 < b.y1 && p.y1 > b.y0);
+
+/** How far away painted land can be and still share its country's flag. */
+const expandBox = (b: BBox): BBox => {
+  const pad = Math.max(bboxWidth(b), bboxHeight(b)) * 0.3 + 1;
+  return { minX: b.minX - pad, minY: b.minY - pad, maxX: b.maxX + pad, maxY: b.maxY + pad };
+};
 
 const bboxContainsPoint = (b: BBox, x: number, y: number) => x >= b.minX && x <= b.maxX && y >= b.minY && y <= b.maxY;
 
