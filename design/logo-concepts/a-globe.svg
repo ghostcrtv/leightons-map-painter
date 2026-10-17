@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <clipPath id="g"><circle cx="246" cy="262" r="176"/></clipPath>
+    <radialGradient id="sea" cx="38%" cy="32%" r="80%">
+      <stop offset="0" stop-color="#3d8fc0"/><stop offset="1" stop-color="#1b4f73"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#13203a"/>
+  <!-- paint swoosh orbit behind -->
+  <path d="M62 330c40 90 250 120 380 10" fill="none" stroke="#ffcd3c" stroke-width="26" stroke-linecap="round" opacity=".35"/>
+  <circle cx="246" cy="262" r="176" fill="url(#sea)"/>
+  <g clip-path="url(#g)">
+    <path d="M70 230 Q120 150 230 160 Q270 170 250 220 Q220 260 160 250 Q110 300 80 290Z" fill="#e8463a"/>
+    <path d="M70 230 Q120 150 230 160 L228 182 Q130 175 80 248Z" fill="#fff"/>
+    <path d="M276 120 Q360 110 420 170 Q440 230 380 240 Q330 230 300 260 Q260 240 270 190Z" fill="#2fae5a"/>
+    <path d="M300 150 l14 28 31 4-23 21 6 31-28-15-27 15 5-31-22-21 31-4z" fill="#ffcd3c"/>
+    <path d="M190 290 Q260 270 300 310 Q330 360 290 410 Q240 440 210 400 Q180 350 190 290Z" fill="#ffcd3c"/>
+    <path d="M190 290 Q260 270 300 310 l-6 22 Q250 300 192 318Z" fill="#1d3f8f"/>
+    <path d="M200 350 Q250 340 296 362 l-4 20 Q250 362 204 372Z" fill="#1d3f8f"/>
+    <path d="M330 300 Q390 290 410 330 Q410 380 360 380 Q320 370 330 300Z" fill="#fff"/>
+    <path d="M345 300 h30 v80 h-30z" fill="#e8463a"/>
+    <path d="M60 262 h380 M246 80 v370" stroke="#fff" stroke-opacity=".12" stroke-width="3"/>
+    <ellipse cx="246" cy="262" rx="90" ry="176" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width="3"/>
+  </g>
+  <circle cx="246" cy="262" r="176" fill="none" stroke="#0a1324" stroke-width="10"/>
+  <!-- paint swoosh in front -->
+  <path d="M442 340c-70 60-180 80-270 50" fill="none" stroke="#ffcd3c" stroke-width="26" stroke-linecap="round"/>
+  <!-- brush -->
+  <g transform="rotate(38 410 140)">
+    <rect x="396" y="10" width="28" height="130" rx="12" fill="#b9733a"/>
+    <rect x="392" y="130" width="36" height="26" rx="4" fill="#cfd6df"/>
+    <path d="M392 156h36c4 30-6 56-18 70-12-14-22-40-18-70z" fill="#ffcd3c"/>
+  </g>
+</svg>

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <clipPath id="s"><path d="M256 60 L420 112 V250 C420 360 340 430 256 462 C172 430 92 360 92 250 V112Z"/></clipPath>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#13203a"/>
+  <!-- crossed brush and flagpole behind the shield -->
+  <g stroke-linecap="round">
+    <path d="M96 440 L430 70" stroke="#b9733a" stroke-width="22"/>
+    <path d="M416 440 L82 70" stroke="#8a96a8" stroke-width="16"/>
+  </g>
+  <path d="M430 70 l12-26 18 6-8 30z" fill="#ffcd3c"/>
+  <path d="M82 70 l78 22 -78 24z" fill="#ffcd3c" stroke="#0a1324" stroke-width="6" stroke-linejoin="round"/>
+  <g clip-path="url(#s)">
+    <rect x="80" y="50" width="176" height="210" fill="#e8463a"/>
+    <path d="M80 110h176M80 170h176M80 230h176" stroke="#fff" stroke-width="24"/>
+    <rect x="256" y="50" width="180" height="210" fill="#1d3f8f"/>
+    <path d="M346 108 l16 33 36 5-26 25 6 36-32-17-32 17 6-36-26-25 36-5z" fill="#ffcd3c"/>
+    <rect x="80" y="260" width="176" height="220" fill="#2fae5a"/>
+    <circle cx="168" cy="345" r="42" fill="#fff"/>
+    <rect x="256" y="260" width="180" height="220" fill="#ffcd3c"/>
+    <path d="M256 470 L346 330 L436 470" fill="none" stroke="#e8463a" stroke-width="30"/>
+  </g>
+  <path d="M256 60 L420 112 V250 C420 360 340 430 256 462 C172 430 92 360 92 250 V112Z" fill="none" stroke="#0a1324" stroke-width="14"/>
+  <path d="M256 60 L420 112 V250 C420 360 340 430 256 462 C172 430 92 360 92 250 V112Z" fill="none" stroke="#ffcd3c" stroke-width="6"/>
+  <!-- globe medallion -->
+  <circle cx="256" cy="258" r="74" fill="#3d8fc0" stroke="#0a1324" stroke-width="10"/>
+  <circle cx="256" cy="258" r="64" fill="none" stroke="#ffcd3c" stroke-width="4"/>
+  <path d="M206 236 q22-26 58-14 q8 20-12 30 q-10 18-30 10 q-18-6-16-26z" fill="#2fae5a"/>
+  <path d="M268 262 q26-8 40 12 q-2 26-26 32 q-20-4-14-44z" fill="#2fae5a"/>
+  <path d="M190 258 h132" stroke="#fff" stroke-opacity=".35" stroke-width="3"/>
+</svg>

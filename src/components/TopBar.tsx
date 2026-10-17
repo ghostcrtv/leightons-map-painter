@@ -18,9 +18,9 @@ export function TopBar() {
         <button className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Settings" title="Settings">
           <IconGear />
         </button>
-        <button className="icon-btn help-btn" onClick={() => setHelpOpen(true)} aria-label="How to play" title="How to play">
-          <IconHelp />
-          <span className="btn-label">Help</span>
+        <button className="help-btn" onClick={() => setHelpOpen(true)} aria-label="Help: how to play" title="How to play">
+          <IconHelp width={18} height={18} />
+          <span>HELP</span>
         </button>
       </div>
     </header>

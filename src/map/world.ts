@@ -9,7 +9,7 @@
  * Two levels of detail: "lo" (loaded first, used when zoomed out) and "hi"
  * (built in the background, used when zoomed in).
  */
-import { geoGraticule10, geoPath, type GeoPermissibleObjects } from 'd3-geo';
+import { geoArea, geoGraticule10, geoPath, type GeoPermissibleObjects } from 'd3-geo';
 import { geoMiller, geoProject } from 'd3-geo-projection';
 import { feature } from 'topojson-client';
 import type { Topology, GeometryCollection } from 'topojson-specification';
@@ -29,11 +29,12 @@ import {
   type Rect,
   type Ring,
 } from './geometry';
-import type { CountryInfo } from '../data/countries';
+import type { CapitalInfo, CountryInfo } from '../data/countries';
 
 export const WORLD_WIDTH = 1000;
 
-export type Lod = 'lo' | 'hi';
+/** lo: whole-world view · hi: country view · max: full detail for very close zoom. */
+export type Lod = 'lo' | 'hi' | 'max';
 
 export interface FlagCluster {
   box: BBox;
@@ -63,10 +64,16 @@ export interface World {
   height: number;
   countries: CountryShape[];
   byId: Map<string, CountryShape>;
-  /** Every border and coastline in one path, so they stroke in a single call. */
+  /**
+   * Every border and coastline in one path, so they stroke in a single call.
+   * (Not built for 'max': at that zoom only a few countries are visible, so the
+   * renderer strokes just those.)
+   */
   borders: Record<Lod, Path2D | null>;
   graticule: Path2D;
-  hiReady: boolean;
+  ready: Record<Lod, boolean>;
+  /** Capital cities, projected to world units. */
+  capitals: { id: string; name: string; x: number; y: number }[];
 }
 
 type CountriesTopo = Topology<{ countries: GeometryCollection<{ name: string }> }>;
@@ -81,9 +88,28 @@ async function fetchTopo(baseUrl: string, lod: Lod): Promise<CountriesTopo> {
   return (await res.json()) as CountriesTopo;
 }
 
+/**
+ * On a globe, a ring's direction decides which side is "inside". Rounding can flip a
+ * very small shape (like the Vatican), turning it into "the whole world except the
+ * Vatican". Any piece covering more than half the globe is flipped back.
+ */
+function fixWinding(f: Feature): Feature {
+  const g = f.geometry;
+  if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) return f;
+  const polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+  let changed = false;
+  const fixed = polys.map((rings) => {
+    if (geoArea({ type: 'Polygon', coordinates: rings }) <= 2 * Math.PI) return rings;
+    changed = true;
+    return rings.map((r) => [...r].reverse());
+  });
+  if (!changed) return f;
+  return { ...f, geometry: { type: 'MultiPolygon', coordinates: fixed } };
+}
+
 /** Project a country to flat polygons in world units. */
 function projectFeature(f: Feature, projection: ReturnType<typeof makeProjection>): PlanarPolygon[] {
-  const projected = geoProject(f, projection) as Feature<Polygon | MultiPolygon> | null;
+  const projected = geoProject(fixWinding(f), projection) as Feature<Polygon | MultiPolygon> | null;
   const geom = projected?.geometry;
   if (!geom) return [];
   const toRing = (r: Position[]): Ring => r.map((p) => [p[0], p[1]] as [number, number]);
@@ -109,7 +135,7 @@ function pathOf(polys: PlanarPolygon[]): Path2D {
 const yieldToBrowser = () => new Promise<void>((r) => setTimeout(r, 0));
 
 /** Load the low-detail world (fast) — the map can draw as soon as this resolves. */
-export async function loadWorld(baseUrl: string, registry: CountryInfo[]): Promise<World> {
+export async function loadWorld(baseUrl: string, registry: CountryInfo[], capitals: CapitalInfo[] = []): Promise<World> {
   const topo = await fetchTopo(baseUrl, 'lo');
   const projection = makeProjection();
   const infoById = new Map(registry.map((c) => [c.id, c]));
@@ -131,7 +157,7 @@ export async function loadWorld(baseUrl: string, registry: CountryInfo[]): Promi
     const clusters: FlagCluster[] = groups.map((members) => {
       const mpolys = members.map((i) => polys[i]);
       const box = mpolys.map(polygonBBox).reduce(unionBBox, emptyBBox());
-      return { box, flagRect: fitFlagRect(box), path: { lo: pathOf(mpolys), hi: null } };
+      return { box, flagRect: fitFlagRect(box), path: { lo: pathOf(mpolys), hi: null, max: null } };
     });
 
     // Label goes at the "pole of inaccessibility" of the biggest single piece.
@@ -148,7 +174,7 @@ export async function loadWorld(baseUrl: string, registry: CountryInfo[]): Promi
       labelPoint: [lp[0], lp[1]],
       mainBox: clusters[0].box,
       clusters,
-      outline: { lo: pathOf(polys), hi: null },
+      outline: { lo: pathOf(polys), hi: null, max: null },
       polyCluster: polyToCluster(groups, polys.length),
     });
   }
@@ -167,9 +193,13 @@ export async function loadWorld(baseUrl: string, registry: CountryInfo[]): Promi
     height,
     countries,
     byId: new Map(countries.map((c) => [c.info.id, c])),
-    borders: { lo: borders, hi: null },
+    borders: { lo: borders, hi: null, max: null },
     graticule,
-    hiReady: false,
+    ready: { lo: true, hi: false, max: false },
+    capitals: capitals.flatMap((c) => {
+      const p = projection([c.lon, c.lat]);
+      return p ? [{ id: c.id, name: c.name, x: p[0], y: p[1] }] : [];
+    }),
   };
 }
 
@@ -180,14 +210,13 @@ function polyToCluster(groups: number[][], count: number): number[] {
 }
 
 /**
- * Build the detailed shapes in small chunks so the map stays responsive.
- * Flag positions are kept from the low-detail version so nothing jumps.
+ * Build a more detailed level ('hi' or 'max') in small chunks so the map stays responsive.
  */
-export async function loadHiDetail(baseUrl: string, world: World): Promise<void> {
-  const topo = await fetchTopo(baseUrl, 'hi');
+export async function loadDetail(baseUrl: string, world: World, lod: 'hi' | 'max'): Promise<void> {
+  const topo = await fetchTopo(baseUrl, lod);
   const projection = makeProjection();
   const fc = feature(topo, topo.objects.countries) as FeatureCollection;
-  const borders = new Path2D();
+  const borders = lod === 'hi' ? new Path2D() : null;
   let n = 0;
   for (const f of fc.features) {
     const shape = world.byId.get(String(f.id));
@@ -202,23 +231,24 @@ export async function loadHiDetail(baseUrl: string, world: World): Promise<void>
     });
     shape.clusters.forEach((c, ci) => {
       const hiPolys = perCluster[ci];
-      c.path.hi = hiPolys.length ? pathOf(hiPolys) : c.path.lo;
+      c.path[lod] = hiPolys.length ? pathOf(hiPolys) : (c.path.hi ?? c.path.lo);
       // Simplifying can shrink small islands a lot, so the detailed island may reach
-      // past the flag sized for the simple one. Re-fit the flag to cover both, and use
-      // the same rectangle at every zoom level so flags never jump.
-      if (hiPolys.length) {
+      // past the flag sized for the simple one. Re-fit the flag to cover both, once,
+      // and use that rectangle at every zoom level so flags don't jump. (The 'max'
+      // level only adds tiny details; the backup colour fill covers any edge.)
+      if (lod === 'hi' && hiPolys.length) {
         c.box = hiPolys.map(polygonBBox).reduce(unionBBox, c.box);
         c.flagRect = fitFlagRect(c.box);
       }
     });
     shape.box = shape.clusters.map((c) => c.box).reduce(unionBBox, shape.box);
     shape.mainBox = shape.clusters[0].box;
-    shape.outline.hi = pathOf(polys);
-    for (const p of polys) appendPolygon(borders, p);
+    shape.outline[lod] = pathOf(polys);
+    if (borders) for (const p of polys) appendPolygon(borders, p);
     if (++n % 20 === 0) await yieldToBrowser();
   }
-  world.borders.hi = borders;
-  world.hiReady = true;
+  world.borders[lod] = borders;
+  world.ready[lod] = true;
 }
 
 function nearestCluster(shape: CountryShape, box: BBox): number {

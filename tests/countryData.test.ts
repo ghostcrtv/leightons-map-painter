@@ -9,6 +9,9 @@ import type { CountryInfo } from '../src/data/countries';
 
 const pub = path.resolve(__dirname, '../public');
 const countries: CountryInfo[] = JSON.parse(fs.readFileSync(path.join(pub, 'data/countries.json'), 'utf8'));
+const capitals: { id: string; name: string; lon: number; lat: number }[] = JSON.parse(
+  fs.readFileSync(path.join(pub, 'data/capitals.json'), 'utf8'),
+);
 const atlas = JSON.parse(fs.readFileSync(path.join(pub, 'flags/atlas.json'), 'utf8'));
 const topoIds = (file: string): string[] =>
   JSON.parse(fs.readFileSync(path.join(pub, 'data', file), 'utf8')).objects.countries.geometries.map(
@@ -46,6 +49,28 @@ describe('country registry', () => {
     for (const file of ['world-lo.json', 'world-hi.json']) {
       const ids = new Set(topoIds(file));
       for (const c of countries) expect(ids.has(c.id), `${c.name} in ${file}`).toBe(true);
+    }
+  });
+
+  it('has a capital for nearly every country, in the right place', () => {
+    const ids = new Set(countries.map((c) => c.id));
+    expect(capitals.length).toBeGreaterThan(220);
+    expect(new Set(capitals.map((c) => c.id)).size).toBe(capitals.length); // one each
+    for (const c of capitals) expect(ids.has(c.id), c.name).toBe(true);
+    const cap = (id: string) => capitals.find((c) => c.id === id)!;
+    expect(cap('DE').name).toBe('Berlin');
+    expect(cap('US').name).toBe('Washington, D.C.');
+    expect(cap('AU').name).toBe('Canberra');
+    expect(cap('ZA').name).toBe('Pretoria');
+    // Berlin is at about 52.5°N, 13.4°E
+    expect(cap('DE').lat).toBeCloseTo(52.5, 0);
+    expect(cap('DE').lon).toBeCloseTo(13.4, 0);
+  });
+
+  it('keeps tiny countries in every level of detail', () => {
+    for (const file of ['world-lo.json', 'world-hi.json', 'world-max.json']) {
+      const ids = new Set(topoIds(file));
+      for (const id of ['GI', 'MC', 'VA', 'SM', 'LI', 'AD']) expect(ids.has(id), `${id} in ${file}`).toBe(true);
     }
   });
 

@@ -11,6 +11,7 @@
  * Outputs (in /public, served as static files):
  *   data/world-lo.json   simplified TopoJSON for the zoomed-out view
  *   data/world-hi.json   detailed TopoJSON for the zoomed-in view
+ *   data/world-max.json  full-detail TopoJSON, loaded only when zoomed in very close
  *   data/countries.json  country registry: id, name, flag code, disputed, area in km²
  *   flags/atlas.png      every flag at 120x90 in one image (one download at startup)
  *   flags/atlas.json     flag code -> cell index in the atlas
@@ -139,12 +140,26 @@ for (const g of world.objects.countries.geometries) {
 registry.sort((a, b) => a.name.localeCompare(b.name));
 
 // --- 2. Two levels of detail ----------------------------------------------
+// Small countries keep their full real shape at every level of detail. Without this,
+// simplifying would erase places like Gibraltar (7 km²) or squash Monaco to a sliver.
+const PROTECT_KM2 = 2500;
+const protectedArcs = new Set();
+{
+  const areaById = new Map(registry.map((r) => [r.id, r.areaKm2]));
+  const collect = (a) => (Array.isArray(a) ? a.forEach(collect) : protectedArcs.add(a < 0 ? ~a : a));
+  for (const g of world.objects.countries.geometries) {
+    if ((areaById.get(g.id) ?? Infinity) < PROTECT_KM2) collect(g.arcs ?? []);
+  }
+}
+
+/** minWeight = 0 keeps every point (full detail). */
 function lod(minWeight, quant, file) {
   const topo = JSON.parse(JSON.stringify(world));
   delete topo.objects.land;
   const pre = simplify.presimplify(topo);
+  for (const i of protectedArcs) for (const p of pre.arcs[i]) p[2] = Infinity;
   // filter(() => true) keeps every ring, so tiny islands and micro-states survive.
-  let t = simplify.filter(simplify.simplify(pre, minWeight), () => true);
+  let t = minWeight > 0 ? simplify.filter(simplify.simplify(pre, minWeight), () => true) : pre;
   t.arcs = t.arcs.map((a) => a.map((p) => [p[0], p[1]])); // drop the weight coordinate
   t = quantize(t, quant);
   fs.mkdirSync(OUT_DATA, { recursive: true });
@@ -154,6 +169,7 @@ function lod(minWeight, quant, file) {
 // Weights are triangle areas in square degrees.
 const loSize = lod(0.05, 1e4, 'world-lo.json');
 const hiSize = lod(0.0005, 1e5, 'world-hi.json');
+const maxSize = lod(0, 1e6, 'world-max.json');
 fs.writeFileSync(path.join(OUT_DATA, 'countries.json'), JSON.stringify(registry, null, 1));
 
 // --- 3. Rasterize flags (PNG is far cheaper than SVG for iPad Safari canvas) -
@@ -196,4 +212,4 @@ fs.writeFileSync(path.join(OUT_FLAGS, 'atlas.png'), PNG.sync.write(png));
 fs.writeFileSync(path.join(OUT_FLAGS, 'atlas.json'), JSON.stringify({ cellW: CELL_W, cellH: CELL_H, cols: COLS, width: atlasW, height: atlasH, index }));
 
 console.log(`countries: ${registry.length}, flags: ${flagCodes.length}`);
-console.log(`world-lo.json ${(loSize / 1024).toFixed(0)} KB, world-hi.json ${(hiSize / 1024).toFixed(0)} KB`);
+console.log(`world-lo ${(loSize / 1024).toFixed(0)} KB, world-hi ${(hiSize / 1024).toFixed(0)} KB, world-max ${(maxSize / 1024).toFixed(0)} KB`);

@@ -44,16 +44,27 @@ export interface Insets {
 export interface MapOptions {
   showLabels: boolean;
   showBorders: boolean;
+  showCapitals: boolean;
 }
 
 const OCEAN = '#2a6f97';
 const OCEAN_DEEP = '#1f5a7d';
 const BORDER = 'rgba(16, 22, 30, 0.8)';
 const SELECT = '#ffd34d';
+const CAPITAL = '#ffd34d';
+/** A capital appears once its country is at least this many CSS px across on screen… */
+const CAPITAL_MIN_COUNTRY_PX = 140;
+/** …or, for small countries, once zoomed in this far. */
+const CAPITAL_ANY_ZOOM = 14;
 /** Below this many CSS px a shape gets a flat colour instead of a clipped flag. */
 const MIN_FLAG_PX = 8;
 /** Switch to the detailed borders when zoomed in at least this much. */
 const HI_DETAIL_ZOOM = 2.5;
+/** Use full-detail borders from this zoom (they start downloading a bit earlier). */
+const MAX_DETAIL_ZOOM = 20;
+const MAX_DETAIL_PRELOAD_ZOOM = 10;
+/** Small countries between these on-screen sizes (CSS px) get a stronger outline. */
+const SMALL_OUTLINE_PX: [number, number] = [4, 60];
 /** Tiny countries get a tappable dot once zoomed in this much. */
 const MARKER_ZOOM = 2.5;
 const MARKER_RADIUS = 6;
@@ -75,7 +86,7 @@ export class MapRenderer {
   private cam: Camera = { x: 0, y: 0, scale: 1 };
   private limits: CameraLimits = { minScale: 1, maxScale: MAX_ZOOM };
   private insets: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
-  private options: MapOptions = { showLabels: true, showBorders: true };
+  private options: MapOptions = { showLabels: true, showBorders: true, showCapitals: true };
 
   private selectedId: string | null = null;
   private hoverId: string | null = null;
@@ -93,6 +104,8 @@ export class MapRenderer {
   private momentum: { vx: number; vy: number; last: number } | null = null;
 
   private markers: Marker[] = [];
+  /** Set by MapView: called once when the player zooms in far enough to need full detail. */
+  onNeedMaxDetail: (() => void) | null = null;
   private labelWidth = new Map<string, number>();
   private hasCamera = false;
 
@@ -207,7 +220,7 @@ export class MapRenderer {
       .filter((c) => bboxContains(c.box, wx, wy))
       .sort((a, b) => a.area - b.area);
     for (const c of candidates) {
-      const path = c.outline[lod] ?? c.outline.lo!;
+      const path = this.pick(c.outline, lod);
       if (this.hitCtx.isPointInPath(path, wx, wy, 'evenodd')) return c.info.id;
     }
     return null;
@@ -254,7 +267,7 @@ export class MapRenderer {
     };
     let target = fitBox(box, inner, Math.max(40, Math.min(inner.width, inner.height) * 0.12), this.limits);
     // Don't zoom in absurdly far on micro-states; don't zoom *out* for huge ones.
-    target.scale = Math.min(target.scale, this.limits.minScale * 400);
+    target.scale = Math.min(target.scale, this.limits.minScale * 150);
     const cx = (box.minX + box.maxX) / 2;
     const cy = (box.minY + box.maxY) / 2;
     target = {
@@ -300,7 +313,24 @@ export class MapRenderer {
   }
 
   private lod(): Lod {
-    return this.world.hiReady && this.zoomRelative() >= HI_DETAIL_ZOOM ? 'hi' : 'lo';
+    return this.lodFor(this.zoomRelative());
+  }
+
+  private lodFor(zoomRel: number): Lod {
+    const ready = this.world.ready;
+    if (zoomRel >= MAX_DETAIL_PRELOAD_ZOOM && !ready.max && this.onNeedMaxDetail) {
+      const load = this.onNeedMaxDetail;
+      this.onNeedMaxDetail = null; // ask only once
+      load();
+    }
+    if (ready.max && zoomRel >= MAX_DETAIL_ZOOM) return 'max';
+    if (ready.hi && zoomRel >= HI_DETAIL_ZOOM) return 'hi';
+    return 'lo';
+  }
+
+  /** The most detailed path available for this level. */
+  private pick(paths: Record<Lod, Path2D | null>, lod: Lod): Path2D {
+    return (lod === 'max' ? paths.max ?? paths.hi : lod === 'hi' ? paths.hi : null) ?? paths.lo!;
   }
 
   // --------------------------------------------------------------- drawing
@@ -406,7 +436,7 @@ export class MapRenderer {
   private drawScene(ctx: CanvasRenderingContext2D, cam: Camera, view: Viewport, dpr: number, decorations: boolean) {
     const s = cam.scale;
     const zoomRel = s / this.limits.minScale;
-    const lod: Lod = this.world.hiReady && zoomRel >= HI_DETAIL_ZOOM ? 'hi' : 'lo';
+    const lod = this.lodFor(zoomRel);
 
     // Ocean
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -433,7 +463,7 @@ export class MapRenderer {
       const code = c.info.flag;
       for (const cl of c.clusters) {
         if (!bboxIntersects(cl.box, visible)) continue;
-        const path = cl.path[lod] ?? cl.path.lo!;
+        const path = this.pick(cl.path, lod);
         const px = Math.max(bboxWidth(cl.box), bboxHeight(cl.box)) * s;
         const src = px >= MIN_FLAG_PX && this.flags.has(code) ? this.flags.source(code, cl.flagRect.w * s) : null;
         if (!src) {
@@ -452,12 +482,27 @@ export class MapRenderer {
       }
     }
 
-    // Borders and coastlines in one stroke.
+    // Borders and coastlines.
     if (this.options.showBorders) {
       ctx.lineJoin = 'round';
       ctx.strokeStyle = BORDER;
-      ctx.lineWidth = clamp(0.6 + Math.log2(zoomRel) * 0.25, 0.6, 1.6) / s;
-      ctx.stroke(this.world.borders[lod] ?? this.world.borders.lo!);
+      const width = clamp(0.6 + Math.log2(zoomRel) * 0.25, 0.6, 1.6);
+      ctx.lineWidth = width / s;
+      const all = this.world.borders[lod];
+      if (all) ctx.stroke(all); // one stroke for the whole world
+      else {
+        // Full detail: stroke only the countries on screen.
+        for (const c of this.world.countries) if (bboxIntersects(c.box, visible)) ctx.stroke(this.pick(c.outline, lod));
+      }
+      // Small countries (Gibraltar, Monaco, Andorra…) get a bolder outline so they stand out.
+      ctx.lineWidth = (width + 1) / s;
+      ctx.strokeStyle = 'rgba(10, 14, 22, 0.95)';
+      for (const c of this.world.countries) {
+        const px = Math.max(bboxWidth(c.box), bboxHeight(c.box)) * s;
+        if (px < SMALL_OUTLINE_PX[0] || px > SMALL_OUTLINE_PX[1] || c.clusters.length > 3) continue;
+        if (!bboxIntersects(c.box, visible)) continue;
+        ctx.stroke(this.pick(c.outline, lod));
+      }
     }
 
     if (!decorations) return;
@@ -467,11 +512,11 @@ export class MapRenderer {
     if (hover) {
       ctx.strokeStyle = 'rgba(255,255,255,0.95)';
       ctx.lineWidth = 2 / s;
-      ctx.stroke(hover.outline[lod] ?? hover.outline.lo!);
+      ctx.stroke(this.pick(hover.outline, lod));
     }
     const sel = this.selectedId ? this.world.byId.get(this.selectedId) : null;
     if (sel) {
-      const path = sel.outline[lod] ?? sel.outline.lo!;
+      const path = this.pick(sel.outline, lod);
       ctx.strokeStyle = 'rgba(0,0,0,0.75)';
       ctx.lineWidth = 5.5 / s;
       ctx.stroke(path);
@@ -482,7 +527,57 @@ export class MapRenderer {
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.drawMarkers(ctx, cam, visible, zoomRel);
-    if (this.options.showLabels) this.drawLabels(ctx, cam, visible, sel ?? null);
+    // Labels share one list of placed boxes so names never overlap each other.
+    const placed: LabelBox[] = [];
+    if (this.options.showLabels) this.drawLabels(ctx, cam, visible, sel ?? null, placed);
+    if (this.options.showCapitals) this.drawCapitals(ctx, cam, visible, zoomRel, placed);
+  }
+
+  /** Capital cities: a yellow star with a yellow name, shown when zoomed in enough. */
+  private drawCapitals(ctx: CanvasRenderingContext2D, cam: Camera, visible: BBox, zoomRel: number, placed: LabelBox[]) {
+    const s = cam.scale;
+    const fs = 13;
+    ctx.font = `700 ${fs}px ${LABEL_FONT}`;
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    for (const cap of this.world.capitals) {
+      if (!bboxContainsPoint(visible, cap.x, cap.y)) continue;
+      const country = this.world.byId.get(cap.id);
+      if (!country) continue;
+      const countryPx = Math.max(bboxWidth(country.mainBox), bboxHeight(country.mainBox)) * s;
+      if (countryPx < CAPITAL_MIN_COUNTRY_PX && zoomRel < CAPITAL_ANY_ZOOM) continue;
+      // Tiny countries already have a dot and a name; a star on top would just add clutter.
+      if (isTiny(country, s)) continue;
+      const [x, y] = worldToScreen(cam, cap.x, cap.y);
+      // "Monaco ★ Monaco": when a small country's capital shares its name, show just the star.
+      const sameName = cap.name.toLowerCase().startsWith(country.info.name.toLowerCase());
+      if (sameName && countryPx < CAPITAL_MIN_COUNTRY_PX * 2) {
+        const box = { x0: x - 7, y0: y - 7, x1: x + 7, y1: y + 7 };
+        if (!overlaps(placed, box)) {
+          placed.push(box);
+          drawStar(ctx, x, y, 6);
+        }
+        continue;
+      }
+      const w = this.unitWidth(cap.name, 700) * fs;
+      // Try the name on the right of the star, then the left, then below.
+      const options: [LabelBox, number, CanvasTextAlign][] = [
+        [{ x0: x - 7, y0: y - fs * 0.7, x1: x + 9 + w, y1: y + fs * 0.7 }, x + 9, 'left'],
+        [{ x0: x - 9 - w, y0: y - fs * 0.7, x1: x + 7, y1: y + fs * 0.7 }, x - 9, 'right'],
+        [{ x0: x - w / 2 - 3, y0: y - 7, x1: x + w / 2 + 3, y1: y + 9 + fs * 1.2 }, x, 'center'],
+      ];
+      const fit = options.find(([b]) => !overlaps(placed, b));
+      if (!fit) continue;
+      placed.push(fit[0]);
+      drawStar(ctx, x, y, 6);
+      ctx.textAlign = fit[2];
+      const ty = fit[2] === 'center' ? y + 9 + fs * 0.55 : y;
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = 'rgba(10,14,22,0.9)';
+      ctx.strokeText(cap.name, fit[1], ty);
+      ctx.fillStyle = CAPITAL;
+      ctx.fillText(cap.name, fit[1], ty);
+    }
   }
 
   /** Dots for countries too small to see, so they can still be found and tapped. */
@@ -490,7 +585,7 @@ export class MapRenderer {
     this.markers = [];
     const s = cam.scale;
     for (const c of this.world.countries) {
-      const tiny = Math.max(bboxWidth(c.box), bboxHeight(c.box)) * s < 6;
+      const tiny = isTiny(c, s);
       const isSel = c.info.id === this.selectedId;
       if (!tiny || (zoomRel < MARKER_ZOOM && !isSel)) continue;
       if (!bboxIntersects(c.box, visible)) continue;
@@ -506,18 +601,25 @@ export class MapRenderer {
     }
   }
 
-  private drawLabels(ctx: CanvasRenderingContext2D, cam: Camera, visible: BBox, selected: CountryShape | null) {
+  private drawLabels(
+    ctx: CanvasRenderingContext2D,
+    cam: Camera,
+    visible: BBox,
+    selected: CountryShape | null,
+    placed: LabelBox[],
+  ) {
     const s = cam.scale;
-    const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.lineJoin = 'round';
 
     const draw = (c: CountryShape, fs: number) => {
-      const [x, y] = worldToScreen(cam, c.labelPoint[0], c.labelPoint[1]);
+      const [x, y0] = worldToScreen(cam, c.labelPoint[0], c.labelPoint[1]);
+      // Tiny countries are shown as a dot: put the name above the dot, not on top of it.
+      const y = isTiny(c, s) ? y0 - MARKER_RADIUS - fs * 0.9 : y0;
       const w = this.unitWidth(c.info.name) * fs;
       const box = { x0: x - w / 2 - 3, y0: y - fs * 0.65, x1: x + w / 2 + 3, y1: y + fs * 0.65 };
-      if (placed.some((p) => p.x0 < box.x1 && p.x1 > box.x0 && p.y0 < box.y1 && p.y1 > box.y0)) return;
+      if (overlaps(placed, box)) return;
       placed.push(box);
       ctx.font = `700 ${fs}px ${LABEL_FONT}`;
       ctx.lineWidth = Math.max(2.5, fs * 0.22);
@@ -546,13 +648,50 @@ export class MapRenderer {
   }
 
   /** Width of a label at a 1px font size (text width scales linearly). */
-  private unitWidth(text: string): number {
-    let w = this.labelWidth.get(text);
+  private unitWidth(text: string, weight = 700): number {
+    const key = `${weight}|${text}`;
+    let w = this.labelWidth.get(key);
     if (w === undefined) {
-      this.hitCtx.font = `700 100px ${LABEL_FONT}`;
+      this.hitCtx.font = `${weight} 100px ${LABEL_FONT}`;
       w = this.hitCtx.measureText(text).width / 100;
-      this.labelWidth.set(text, w);
+      this.labelWidth.set(key, w);
     }
     return w;
   }
+}
+
+interface LabelBox {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+/**
+ * Too small to see as a shape on screen? Uses width AND height, because some micro-states
+ * (like the Vatican) are thin slivers in the map data.
+ */
+const isTiny = (c: CountryShape, scale: number) =>
+  Math.max(bboxWidth(c.box), bboxHeight(c.box)) * scale < 6 ||
+  Math.sqrt(bboxWidth(c.box) * bboxHeight(c.box)) * scale < 4;
+
+const overlaps = (placed: LabelBox[], b: LabelBox) =>
+  placed.some((p) => p.x0 < b.x1 && p.x1 > b.x0 && p.y0 < b.y1 && p.y1 > b.y0);
+
+const bboxContainsPoint = (b: BBox, x: number, y: number) => x >= b.minX && x <= b.maxX && y >= b.minY && y <= b.maxY;
+
+/** Five-pointed capital-city star with a dark edge so it shows on any flag. */
+function drawStar(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const rad = i % 2 === 0 ? r : r * 0.45;
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    ctx.lineTo(x + Math.cos(a) * rad, y + Math.sin(a) * rad);
+  }
+  ctx.closePath();
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = 'rgba(10,14,22,0.9)';
+  ctx.stroke();
+  ctx.fillStyle = CAPITAL;
+  ctx.fill();
 }

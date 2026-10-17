@@ -14,6 +14,8 @@ Next up: **Phase 2: Territory Painting.**
 - Sharper borders load automatically when zoomed in.
 - Tap/click to select (gold outline); tiny countries get tappable dots when zoomed in.
 - Country names on the map, sized to fit.
+- Capital cities (yellow stars, can be turned off in Settings).
+- Tiny countries keep their real shapes; full-detail borders when zoomed in close.
 - Country panel: flag, name, size, size rank, territory %, future actions shown as "Soon".
 - Search for a country by name; the map flies there.
 - Help ("How to play"), first-time welcome tour (skippable, shown once), Settings
@@ -39,7 +41,10 @@ Deployment can happen earlier — any time after Phase 1 — so Leighton can pla
 
 - **Not yet tested on a real iPad.** Tested in Chromium at iPad and phone sizes only.
 - Natural Earth's smallest countries are approximate shapes; their areas are rough
-  (e.g. Monaco shows ~18 km², Vatican "under 1 km²").
+  (e.g. Monaco shows ~18 km², Vatican "under 1 km²"). The Vatican is a thin sliver in the
+  data, so it shows as a dot.
+- Zoom stops at 300× because the free map data isn't accurate beyond that.
+- Logo: three concepts drawn (design/logo-concepts); waiting for a pick.
 - Flags are 4:3 versions (from flag-icons), so a few flags (e.g. Nepal, Switzerland) look
   slightly different from their official proportions.
 - Antarctica takes a lot of room at the bottom (normal for this projection).

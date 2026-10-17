@@ -97,6 +97,12 @@ export function CountryPanel() {
           </div>
           <p className="muted">of its original land · nothing gained or lost yet</p>
           <dl className="facts">
+            {country.capital && (
+              <div>
+                <dt>Capital</dt>
+                <dd className="capital-name">★ {country.capital}</dd>
+              </div>
+            )}
             <div>
               <dt>Size</dt>
               <dd>

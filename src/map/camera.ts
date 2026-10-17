@@ -24,8 +24,8 @@ export interface CameraLimits {
   maxScale: number;
 }
 
-/** Most zoomed-in, relative to the whole-world view. Enough to see Monaco and Vatican. */
-export const MAX_ZOOM = 1500;
+/** Most zoomed-in, relative to the whole-world view. Enough to see Monaco and Vatican, without going past what the map data can show. */
+export const MAX_ZOOM = 300;
 
 export function screenToWorld(cam: Camera, sx: number, sy: number): [number, number] {
   return [(sx - cam.x) / cam.scale, (sy - cam.y) / cam.scale];

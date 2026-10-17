@@ -5,7 +5,7 @@ import { attachMap } from '../game/mapController';
 import { FlagLibrary } from './flags';
 import { GestureController } from './gestures';
 import { MapRenderer } from './MapRenderer';
-import { loadHiDetail, loadWorld } from './world';
+import { loadDetail, loadWorld } from './world';
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -24,9 +24,9 @@ export function MapView() {
     (async () => {
       try {
         game.setLoading('Loading countries…');
-        const registry = await loadCountryRegistry(BASE);
+        const { countries: registry, capitals } = await loadCountryRegistry(BASE);
         game.setLoading('Drawing borders and flags…');
-        const [world, flags] = await Promise.all([loadWorld(BASE, registry), FlagLibrary.load(BASE)]);
+        const [world, flags] = await Promise.all([loadWorld(BASE, registry, capitals), FlagLibrary.load(BASE)]);
         if (cancelled) return;
 
         renderer = new MapRenderer(canvas, world, flags);
@@ -34,7 +34,7 @@ export function MapView() {
         attachMap(r, flags);
         if (window.location.search.includes('debug')) (window as unknown as { __map: MapRenderer }).__map = r;
         const s = useGame.getState();
-        r.setOptions({ showLabels: s.showLabels, showBorders: s.showBorders });
+        r.setOptions({ showLabels: s.showLabels, showBorders: s.showBorders, showCapitals: s.showCapitals });
         r.setSelected(s.selectedId);
 
         gestures = new GestureController(canvas, {
@@ -52,8 +52,12 @@ export function MapView() {
         cleanups.push(
           useGame.subscribe((st, prev) => {
             if (st.selectedId !== prev.selectedId) r.setSelected(st.selectedId);
-            if (st.showLabels !== prev.showLabels || st.showBorders !== prev.showBorders) {
-              r.setOptions({ showLabels: st.showLabels, showBorders: st.showBorders });
+            if (
+              st.showLabels !== prev.showLabels ||
+              st.showBorders !== prev.showBorders ||
+              st.showCapitals !== prev.showCapitals
+            ) {
+              r.setOptions({ showLabels: st.showLabels, showBorders: st.showBorders, showCapitals: st.showCapitals });
             }
           }),
         );
@@ -65,9 +69,15 @@ export function MapView() {
         useGame.getState().setReady(registry);
 
         // Sharper borders for zooming in, built quietly in the background.
-        loadHiDetail(BASE, world)
+        loadDetail(BASE, world, 'hi')
           .then(() => !cancelled && r.invalidate())
           .catch((e) => console.warn('Detailed borders could not load; using simpler ones.', e));
+        // Full-detail borders are big, so they only download if the player zooms in close.
+        r.onNeedMaxDetail = () => {
+          loadDetail(BASE, world, 'max')
+            .then(() => !cancelled && r.invalidate())
+            .catch((e) => console.warn('Full-detail borders could not load.', e));
+        };
       } catch (e) {
         console.error(e);
         if (!cancelled) {

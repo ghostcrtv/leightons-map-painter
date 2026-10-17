@@ -79,11 +79,25 @@ Planned folders (create when the phase starts): `src/territory/` (Phase 2/5),
 - **Flag images:** PNG, not SVG (SVG on canvas is slow/unreliable in iPad Safari). One atlas
   image holds every flag at 120×90; a sharp 480×360 PNG is lazy-loaded when a flag is shown
   ≥110px wide.
-- **Speed:** two levels of detail (`lo` at startup, `hi` built in the background, used at ≥2.5×
-  zoom); shapes < 12px get the flag's average colour without clipping; visible-area culling;
+- **Speed:** three levels of detail — `lo` at startup, `hi` built in the background (used at
+  ≥2.5× zoom), `max` (full 1:10m detail, ~1 MB gzipped) downloaded only once the player zooms
+  past 10× and used at ≥20×. At `max` only on-screen countries' borders are stroked. Countries
+  under 2,500 km² are protected from simplification at every level (`PROTECT_KM2` in
+  prepare-data). Max zoom is 300× (data isn't accurate beyond that); shapes < 12px get the flag's average colour without clipping; visible-area culling;
   all borders in one `Path2D` stroke; DPR capped at 2. If a full frame takes > 14 ms, gestures
   slide a cached snapshot over a low-res whole-world overview, and redraw sharply on release.
-- **Tiny countries:** at ≥2.5× zoom, countries smaller than 6px get a tappable dot.
+- **Tiny countries:** at ≥2.5× zoom, countries too small to see (`isTiny`, which checks width
+  AND height because some are slivers) get a tappable dot; small ones (4–60px) get a bolder
+  outline.
+- **Inside-out shapes:** `fixWinding` in world.ts flips any polygon covering more than half the
+  globe (quantising can reverse a micro-state's ring, e.g. the Vatican).
+- **Flag clusters:** a piece joins a cluster only if nearby AND ≥20% of the biggest piece's
+  size, so small islands get a whole flag of their own. Flag rectangles are re-fitted once when
+  `hi` loads and then fixed for all zoom levels.
+- **Capitals:** `public/data/capitals.json` (Natural Earth populated places, built by
+  `scripts/make-capitals.mjs`). Drawn as yellow stars + names when the country is ≥140px on
+  screen or zoom ≥14×; skipped for tiny countries; a capital sharing the country's name shows
+  only the star. Labels share one collision list (`placed`) with country names.
 - **Hit-testing:** bounding-box filter, then `isPointInPath`, smallest area first (so enclaves
   like Lesotho and Vatican win).
 - **React never re-renders when the map moves.** The renderer is a plain class; the UI talks to

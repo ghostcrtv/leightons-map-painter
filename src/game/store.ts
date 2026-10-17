@@ -28,6 +28,7 @@ interface GameState {
   tourOpen: boolean;
   showLabels: boolean;
   showBorders: boolean;
+  showCapitals: boolean;
 
   setLoading(message: string): void;
   setError(message: string): void;
@@ -39,6 +40,7 @@ interface GameState {
   setTourOpen(v: boolean): void;
   setShowLabels(v: boolean): void;
   setShowBorders(v: boolean): void;
+  setShowCapitals(v: boolean): void;
 }
 
 export const useGame = create<GameState>((set) => ({
@@ -58,6 +60,7 @@ export const useGame = create<GameState>((set) => ({
   tourOpen: false,
   showLabels: readSetting('showLabels', true),
   showBorders: readSetting('showBorders', true),
+  showCapitals: readSetting('showCapitals', true),
 
   setLoading: (loadingMessage) => set({ loadingMessage }),
   setError: (error) => set({ status: 'error', error }),
@@ -75,5 +78,9 @@ export const useGame = create<GameState>((set) => ({
   setShowBorders: (showBorders) => {
     writeSetting('showBorders', showBorders);
     set({ showBorders });
+  },
+  setShowCapitals: (showCapitals) => {
+    writeSetting('showCapitals', showCapitals);
+    set({ showCapitals });
   },
 }));

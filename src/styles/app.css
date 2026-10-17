@@ -120,8 +120,17 @@ button:disabled { cursor: default; }
 }
 .icon-btn:active { transform: scale(0.96); }
 .icon-btn.small { min-width: 40px; height: 40px; padding: 0; box-shadow: none; background: rgba(255,255,255,0.06); }
-.help-btn { background: var(--gold); color: #2a1e00; border-color: transparent; font-weight: 800; padding: 0 16px; }
-.btn-label { font-size: 16px; }
+.topbar-actions { align-items: center; }
+/* Compact Help pill: small, but still a comfortable 44px tall for fingers. */
+.help-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 44px; padding: 0 13px 0 10px;
+  border: 0; border-radius: 999px;
+  background: var(--gold); color: #2a1e00;
+  font-size: 13px; font-weight: 900; letter-spacing: 0.08em;
+  box-shadow: var(--shadow);
+}
+.help-btn:active { transform: scale(0.96); }
 
 /* ------------------------------------------------------------- search */
 .search {
@@ -479,8 +488,6 @@ button:disabled { cursor: default; }
 @media (max-width: 760px) {
   .brand-title { display: none; }
   .brand { padding: 5px; }
-  .help-btn .btn-label { display: none; }
-  .help-btn { padding: 0 12px; }
   .search { max-width: none; }
 
   .toolbar { top: auto; bottom: calc(64px + var(--safe-bottom)); transform: none; }
@@ -505,3 +512,8 @@ button:disabled { cursor: default; }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* ------------------------------------------------------------- capitals + settings hints */
+.capital-name { color: var(--gold); }
+.toggle-hint { display: block; margin-top: 2px; font-size: 13px; color: var(--muted); }
+.topbar-actions .icon-btn { height: 44px; min-width: 44px; padding: 0; }

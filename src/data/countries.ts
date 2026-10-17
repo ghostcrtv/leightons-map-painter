@@ -16,10 +16,25 @@ export interface CountryInfo {
   disputed: boolean;
   /** Approximate real-world land area in km² (Natural Earth 1:10m data). */
   areaKm2: number;
+  /** Capital city name (filled in from capitals.json; missing for uninhabited places). */
+  capital?: string;
 }
 
-export async function loadCountryRegistry(baseUrl: string): Promise<CountryInfo[]> {
-  const res = await fetch(`${baseUrl}data/countries.json`);
-  if (!res.ok) throw new Error(`Could not load country list (${res.status})`);
-  return (await res.json()) as CountryInfo[];
+export interface CapitalInfo {
+  /** Country id this is the capital of. */
+  id: string;
+  name: string;
+  lon: number;
+  lat: number;
+}
+
+export async function loadCountryRegistry(baseUrl: string): Promise<{ countries: CountryInfo[]; capitals: CapitalInfo[] }> {
+  const [cRes, capRes] = await Promise.all([fetch(`${baseUrl}data/countries.json`), fetch(`${baseUrl}data/capitals.json`)]);
+  if (!cRes.ok) throw new Error(`Could not load country list (${cRes.status})`);
+  const countries = (await cRes.json()) as CountryInfo[];
+  // Capitals are a nice extra: if they fail to load, the game still works.
+  const capitals = capRes.ok ? ((await capRes.json()) as CapitalInfo[]) : [];
+  const capitalById = new Map(capitals.map((c) => [c.id, c.name]));
+  for (const c of countries) c.capital = capitalById.get(c.id);
+  return { countries, capitals };
 }

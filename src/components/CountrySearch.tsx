@@ -34,7 +34,7 @@ export function CountrySearch() {
       <input
         ref={inputRef}
         type="search"
-        placeholder="Find a country…"
+        placeholder={typeof window !== 'undefined' && window.innerWidth < 500 ? 'Search…' : 'Find a country…'}
         aria-label="Find a country"
         value={query}
         enterKeyHint="go"
