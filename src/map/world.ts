@@ -201,8 +201,18 @@ export async function loadHiDetail(baseUrl: string, world: World): Promise<void>
       perCluster[ci].push(poly);
     });
     shape.clusters.forEach((c, ci) => {
-      c.path.hi = perCluster[ci].length ? pathOf(perCluster[ci]) : c.path.lo;
+      const hiPolys = perCluster[ci];
+      c.path.hi = hiPolys.length ? pathOf(hiPolys) : c.path.lo;
+      // Simplifying can shrink small islands a lot, so the detailed island may reach
+      // past the flag sized for the simple one. Re-fit the flag to cover both, and use
+      // the same rectangle at every zoom level so flags never jump.
+      if (hiPolys.length) {
+        c.box = hiPolys.map(polygonBBox).reduce(unionBBox, c.box);
+        c.flagRect = fitFlagRect(c.box);
+      }
     });
+    shape.box = shape.clusters.map((c) => c.box).reduce(unionBBox, shape.box);
+    shape.mainBox = shape.clusters[0].box;
     shape.outline.hi = pathOf(polys);
     for (const p of polys) appendPolygon(borders, p);
     if (++n % 20 === 0) await yieldToBrowser();

@@ -20,14 +20,21 @@ describe('polygon area', () => {
 });
 
 describe('flag clusters', () => {
-  it('groups nearby islands but separates far-away pieces', () => {
+  it('groups big nearby pieces but separates far-away pieces', () => {
     const mainland = square(0, 0, 10);
-    const island = square(11, 2, 1); // just off the coast
+    const bigIsland = square(11, 2, 4); // close by and fairly big, like Hokkaido
     const farAway = square(100, 100, 3); // like Hawaii
-    const clusters = clusterPolygons([farAway, mainland, island]);
+    const clusters = clusterPolygons([farAway, mainland, bigIsland]);
     expect(clusters).toHaveLength(2);
     expect(clusters[0].sort()).toEqual([1, 2]); // biggest cluster first
     expect(clusters[1]).toEqual([0]);
+  });
+
+  it('gives a small island its own whole flag', () => {
+    const mainland = square(0, 0, 10);
+    const tinyIsland = square(11, 2, 1); // close by but small
+    const clusters = clusterPolygons([mainland, tinyIsland]);
+    expect(clusters).toEqual([[0], [1]]);
   });
 });
 

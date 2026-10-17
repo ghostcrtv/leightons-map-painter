@@ -76,6 +76,8 @@ export function polygonArea(poly: PlanarPolygon): number {
   return Math.max(0, area);
 }
 
+const size = (b: BBox) => Math.max(bboxWidth(b), bboxHeight(b));
+
 function expand(b: BBox, fraction: number, minPad: number): BBox {
   const px = Math.max(bboxWidth(b) * fraction, minPad);
   const py = Math.max(bboxHeight(b) * fraction, minPad);
@@ -85,13 +87,22 @@ function expand(b: BBox, fraction: number, minPad: number): BBox {
 /**
  * Group a country's polygons into "flag clusters".
  *
- * One flag is stretched across each cluster. Nearby pieces (a coastline's islands,
- * an archipelago) share one flag; far-away pieces (Alaska, Hawaii, French Guiana)
- * get their own, so each piece shows a recognisable flag instead of a sliver.
+ * One flag is stretched across each cluster. Big pieces that are close together
+ * (Great Britain and Ireland's north, Honshu and Hokkaido) share one flag.
+ * Far-away pieces (Alaska, Hawaii) and small islands get a whole flag of their own,
+ * so every island shows a recognisable flag instead of a sliver of one colour.
+ *
+ * A piece joins a cluster only if it is nearby AND at least `minRelSize` times
+ * the size of the cluster's biggest piece (size = the longer side of its box).
  *
  * Returns arrays of polygon indices, largest cluster first.
  */
-export function clusterPolygons(polys: PlanarPolygon[], gapFraction = 0.15, minPad = 0.4): number[][] {
+export function clusterPolygons(
+  polys: PlanarPolygon[],
+  gapFraction = 0.15,
+  minPad = 0.4,
+  minRelSize = 0.2,
+): number[][] {
   const boxes = polys.map(polygonBBox);
   const areas = polys.map(polygonArea);
   const order = polys.map((_, i) => i).sort((a, b) => areas[b] - areas[a]);
@@ -103,12 +114,13 @@ export function clusterPolygons(polys: PlanarPolygon[], gapFraction = 0.15, minP
     assigned[seed] = true;
     const members = [seed];
     let box = boxes[seed];
+    const minSize = size(boxes[seed]) * minRelSize;
     let grew = true;
     while (grew) {
       grew = false;
       const reach = expand(box, gapFraction, minPad);
       for (const i of order) {
-        if (assigned[i] || !bboxIntersects(reach, boxes[i])) continue;
+        if (assigned[i] || size(boxes[i]) < minSize || !bboxIntersects(reach, boxes[i])) continue;
         assigned[i] = true;
         members.push(i);
         box = unionBBox(box, boxes[i]);

@@ -51,7 +51,7 @@ const OCEAN_DEEP = '#1f5a7d';
 const BORDER = 'rgba(16, 22, 30, 0.8)';
 const SELECT = '#ffd34d';
 /** Below this many CSS px a shape gets a flat colour instead of a clipped flag. */
-const MIN_FLAG_PX = 12;
+const MIN_FLAG_PX = 8;
 /** Switch to the detailed borders when zoomed in at least this much. */
 const HI_DETAIL_ZOOM = 2.5;
 /** Tiny countries get a tappable dot once zoomed in this much. */
@@ -443,6 +443,9 @@ export class MapRenderer {
         }
         ctx.save();
         ctx.clip(path, 'evenodd');
+        // Backup fill in the flag's main colour, so no bit of land is ever left empty.
+        ctx.fillStyle = this.flags.averageColor(code);
+        ctx.fill(path, 'evenodd');
         const r = cl.flagRect;
         ctx.drawImage(src.image, src.sx, src.sy, src.sw, src.sh, r.x, r.y, r.w, r.h);
         ctx.restore();
