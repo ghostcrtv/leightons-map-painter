@@ -51,6 +51,8 @@ interface GameState {
   simReport: SimReport | null;
   /** Auto battles: keep running random conflicts. */
   simAuto: boolean;
+  /** A long simulation is running (shows Skip / Stop buttons). */
+  simRunning: 'year' | 'war' | null;
   /** The saved world being played. */
   world: { id: string; name: string } | null;
   /** Bumps when the world changes (opened, renamed, names/custom countries edited). */
@@ -82,6 +84,7 @@ interface GameState {
   setSimBanner(v: SimBanner | null): void;
   setSimReport(v: SimReport | null): void;
   setSimAuto(v: boolean): void;
+  setSimRunning(v: 'year' | 'war' | null): void;
   setWorld(w: { id: string; name: string } | null): void;
   worldChanged(): void;
   setWorldsOpen(v: boolean): void;
@@ -123,6 +126,7 @@ export const useGame = create<GameState>((set) => ({
   simBanner: null,
   simReport: null,
   simAuto: false,
+  simRunning: null,
   world: null,
   worldVersion: 0,
   worldsOpen: false,
@@ -154,6 +158,7 @@ export const useGame = create<GameState>((set) => ({
   setSimBanner: (simBanner) => set({ simBanner }),
   setSimReport: (simReport) => set({ simReport }),
   setSimAuto: (simAuto) => set({ simAuto }),
+  setSimRunning: (simRunning) => set({ simRunning }),
   setWorld: (world) => set({ world }),
   worldChanged: () => set((s) => ({ worldVersion: s.worldVersion + 1 })),
   setWorldsOpen: (worldsOpen) => set({ worldsOpen }),

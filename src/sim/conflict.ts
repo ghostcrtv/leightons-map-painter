@@ -98,16 +98,17 @@ export function typicalShare(w: Fighter, l: Fighter): number {
   return m > 0 ? CONFLICT.shareBase + CONFLICT.shareGap * (1 - Math.exp(-m / 30)) : CONFLICT.upsetShare;
 }
 
-export function resolveConflict(a: Fighter, b: Fighter, rand: Rand): ConflictResult {
+/** `boost` > 1 makes results bigger (World War mode: more land changes hands, more conquests). */
+export function resolveConflict(a: Fighter, b: Fighter, rand: Rand, boost = 1): ConflictResult {
   const odds = conflictOdds(a, b);
   const r = rand();
   if (r < odds.peace) return { outcome: 'peace', share: 0, upset: false, odds };
   const aWon = r < odds.peace + odds.aWins;
   const [w, l] = aWon ? [a, b] : [b, a];
   const upset = w.power < l.power;
-  if (rand() < conquerChance(w, l)) return { outcome: 'conquest', winner: w.id, loser: l.id, share: 1, upset, odds };
+  if (rand() < Math.min(0.85, conquerChance(w, l) * boost)) return { outcome: 'conquest', winner: w.id, loser: l.id, share: 1, upset, odds };
   const luck = 0.5 + rand();
-  const share = clamp(typicalShare(w, l) * luck, 0.02, 0.7);
+  const share = clamp(typicalShare(w, l) * luck * boost, 0.02, boost > 1 ? 0.8 : 0.7);
   return { outcome: 'partial', winner: w.id, loser: l.id, share, upset, odds };
 }
 

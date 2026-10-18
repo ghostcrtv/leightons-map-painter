@@ -3,9 +3,10 @@ import { useGame } from '../game/store';
 import { mapController } from '../game/mapController';
 import { DISASTERS } from '../sim/disasters';
 import {
-  battlePower, likelyFor, oddsFor, playable, randomNation, randomOpponent, runConflict, runDisaster, setAlliance, startAutoBattles,
-  strengthOf,
+  battlePower, likelyFor, oddsFor, playable, playableIds, randomNation, randomOpponent, rebels, runCoastGrowth, runConflict, runDisaster,
+  runRebellion, runSeaRise, setAlliance, simulateYear, startAutoBattles, startWorldWar, strengthOf,
 } from '../sim/runner';
+import { formatArea } from '../utils/format';
 import { getTerritory } from '../territory/session';
 import { Modal } from './Modal';
 import { IconChevronDown } from './icons';
@@ -16,7 +17,7 @@ const RANDOM = '__random';
 export function SimulationDialog() {
   const view = useGame((s) => s.simView);
   const setView = useGame((s) => s.setSimView);
-  const title = view === 'conflict' ? 'Conflict' : view === 'disaster' ? 'Natural disaster' : 'Simulation';
+  const title = { menu: 'Simulation', conflict: 'Conflict', disaster: 'Natural disaster', war: 'World War', rebellion: 'Rebellion', coast: 'Coast growth' }[view ?? 'menu'];
   return (
     <Modal title={title} onClose={() => setView(null)} wide>
       {view !== 'menu' && (
@@ -42,11 +43,49 @@ export function SimulationDialog() {
               <strong>Natural disaster</strong>
               <small>Floods, earthquakes, tornadoes and more. Hit countries are weakened.</small>
             </button>
+            <button className="action-card" onClick={() => simulateYear()}>
+              <span className="action-emoji" aria-hidden>
+                📅
+              </span>
+              <strong>Simulate 1 year</strong>
+              <small>A string of random events, then a year in review. One Undo takes it back.</small>
+            </button>
+            <button className="action-card" onClick={() => setView('war')}>
+              <span className="action-emoji" aria-hidden>
+                🌍
+              </span>
+              <strong>World War</strong>
+              <small>Battle after battle until one superpower rules the world.</small>
+            </button>
+            <button className="action-card" onClick={() => setView('rebellion')}>
+              <span className="action-emoji" aria-hidden>
+                ✊
+              </span>
+              <strong>Rebellion</strong>
+              <small>A conquered country breaks free and takes its land back.</small>
+            </button>
+            <button className="action-card" onClick={() => setView('coast')}>
+              <span className="action-emoji" aria-hidden>
+                🏝️
+              </span>
+              <strong>Coast growth</strong>
+              <small>A country by the sea builds new land along its coast.</small>
+            </button>
+            <button className="action-card" onClick={() => runSeaRise()}>
+              <span className="action-emoji" aria-hidden>
+                🌊
+              </span>
+              <strong>Sea level rise</strong>
+              <small>Every coast in the world loses a little land.</small>
+            </button>
           </div>
         </>
       )}
       {view === 'conflict' && <ConflictSetup />}
       {view === 'disaster' && <DisasterSetup />}
+      {view === 'war' && <WarSetup />}
+      {view === 'rebellion' && <RebellionSetup />}
+      {view === 'coast' && <CoastSetup />}
     </Modal>
   );
 }
@@ -254,6 +293,101 @@ function DisasterSetup() {
         A country hit by a disaster is weakened (it fights at lower power): light disasters make a little smoke, extreme ones huge clouds. It stays weak until it wins a battle or you reset the
         whole map. Random disasters pick a nation and a disaster that really happens there.
       </p>
+    </div>
+  );
+}
+
+function WarSetup() {
+  useGame((s) => s.territoryVersion);
+  const left = playableIds().length;
+  return (
+    <div className="sim-setup">
+      <p>
+        Countries attack their neighbours again and again — bigger results than normal battles — until <b>one superpower</b> rules
+        the world, or you press <b>Stop</b>. {left} countries are still in the game.
+      </p>
+      <div className="sim-buttons">
+        <button className="btn primary big-go" onClick={() => startWorldWar(false)}>
+          🌍 Watch it
+        </button>
+        <button className="btn secondary" onClick={() => startWorldWar(true)}>
+          ⏩ Go fast (no animations)
+        </button>
+      </div>
+      <p className="muted small-print">
+        Tip: make a copy of your world first (tap the logo → Copy) if you want to keep the map as it is now. Every battle is saved in
+        the History, and Undo takes them back one at a time.
+      </p>
+    </div>
+  );
+}
+
+function RebellionSetup() {
+  const byId = useGame((s) => s.countryById);
+  useGame((s) => s.territoryVersion);
+  const list = rebels();
+  const [id, setId] = useState(list[0]?.id ?? '');
+  if (!list.length) {
+    return (
+      <div className="sim-setup">
+        <p className="empty-history">No country has lost enough land to rebel yet. Win some battles or paint some land first!</p>
+      </div>
+    );
+  }
+  return (
+    <div className="sim-setup">
+      <label className="nation-select">
+        <span className="field-label">Who rebels?</span>
+        <select id="rebel-pick" value={id} onChange={(e) => setId(e.target.value)}>
+          {list.map((c) => (
+            <option key={c.id} value={c.id}>
+              {byId.get(c.id)?.name} (from {byId.get(c.from)?.name}, {formatArea(c.km2)})
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="sim-buttons">
+        <button className="btn primary big-go" disabled={!id} onClick={() => runRebellion(id)}>
+          ✊ Rebel!
+        </button>
+        <button className="btn secondary" onClick={() => runRebellion()}>
+          🎲 Random rebellion
+        </button>
+      </div>
+      <p className="muted small-print">The rebels take back their own real land from the country holding most of it.</p>
+    </div>
+  );
+}
+
+function CoastSetup() {
+  const selectedId = useGame((s) => s.selectedId);
+  const countries = useGame((s) => s.countries);
+  const version = useGame((s) => s.territoryVersion);
+  const coastal = useMemo(
+    () => countries.filter((c) => playable(c.id) && mapController.isCoastal(c.id)).sort((a, b) => a.name.localeCompare(b.name)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [countries, version],
+  );
+  const [id, setId] = useState(() => (selectedId && coastal.some((c) => c.id === selectedId) ? selectedId : ''));
+  return (
+    <div className="sim-setup">
+      <label className="nation-select">
+        <span className="field-label">Country by the sea</span>
+        <select id="coast-pick" value={id} onChange={(e) => setId(e.target.value)}>
+          <option value="">🎲 Random</option>
+          {coastal.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="sim-buttons">
+        <button className="btn primary big-go" onClick={() => runCoastGrowth(id || undefined)}>
+          🏝️ Grow!
+        </button>
+      </div>
+      <p className="muted small-print">The country builds about 1–4% more land along part of its coast.</p>
     </div>
   );
 }

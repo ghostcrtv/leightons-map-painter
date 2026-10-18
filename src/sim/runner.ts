@@ -18,7 +18,10 @@ import type { Action } from '../territory/Territory';
 import { DISASTER_BY_ID, likelyDisasters, pickDisaster, rollSeverity, type DisasterDef, type PlaceFacts } from './disasters';
 import type { Effects, W } from './effects';
 import { cryptoRand, pick, pickWeighted, type Rand } from './random';
-import { playBattle, playDisaster } from './shows';
+import { formatArea } from '../utils/format';
+import { playBattle, playDisaster, playGrowth, playSeaRise } from './shows';
+import { planCoastGrowth, planRebellion, planSeaRise, rebellionCandidates } from '../territory/events';
+import { buildHistory } from './history';
 import { sound } from '../audio/sound';
 import type { SimReport } from './types';
 
@@ -182,14 +185,35 @@ const inBox = (b: BBox) => (p: W) => p[0] >= b.minX && p[0] <= b.maxX && p[1] >=
 const dist2 = (a: W, b: W) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2;
 
 /** Common start of every simulation: close windows, stop painting, show the banner. */
-function begin(banner: Parameters<ReturnType<typeof game>['setSimBanner']>[0]) {
+/** How a simulation plays: normal, quick (inside a simulated year) or silent (no show at all). */
+export interface Mode {
+  quick?: boolean;
+  silent?: boolean;
+  /** World War: bigger results. */
+  boost?: number;
+}
+/** Shown under the banner during a year / world war, e.g. "Year 3 · event 4 of 9". */
+let bannerStep: string | undefined;
+export function setBannerStep(s: string | undefined) {
+  bannerStep = s;
+}
+
+/** Close windows and stop painting, so the map can be seen. */
+function closeWindows() {
   const st = game();
   st.setSimView(null);
   st.setSimReport(null);
   st.setActionsOpen(false);
   st.setRankingsOpen(false);
+  st.setHistoryOpen(false);
+  st.setWorldsOpen(false);
   if (st.tool !== 'select') st.setTool('select');
-  st.setSimBanner(banner);
+}
+
+function begin(banner: Parameters<ReturnType<typeof game>['setSimBanner']>[0]) {
+  if (banner && bannerStep) banner = { ...banner, step: bannerStep };
+  closeWindows();
+  game().setSimBanner(banner);
 }
 
 function finish(report: SimReport | null) {
@@ -206,22 +230,44 @@ export async function runConflict(a: string, b: string): Promise<void> {
   if (busy || !t || a === b || !playable(a) || !playable(b) || t.areAllies(a, b)) return;
   busy = true;
   lastConflict = { a, b };
+  let report: SimReport | null = null;
   try {
-    await conflict(t, a, b);
+    report = await conflict(t, a, b);
   } catch (e) {
     console.error('Conflict simulation failed', e);
-    finish(null);
+  }
+  finish(report);
+}
+
+/** Fly the camera and wait (shorter when quick). */
+async function flyTo(box: BBox, mode: Mode) {
+  if (mode.silent || !renderer) return;
+  renderer.flyToBox(box, 120, mode.quick ? 420 : 750);
+  await sleep(mode.quick ? 470 : 800);
+}
+
+/** Play a show at normal or quick speed. */
+async function show(mode: Mode, play: (done: () => void) => void, apply: () => void) {
+  if (mode.silent || !fx) {
+    apply();
+    return;
+  }
+  fx.speed = mode.quick ? 2.2 : 1;
+  try {
+    await new Promise<void>((resolve) => play(resolve));
+  } finally {
+    fx.speed = 1;
   }
 }
 
-async function conflict(t: Territory, a: string, b: string) {
+export async function conflict(t: Territory, a: string, b: string, mode: Mode = {}): Promise<SimReport> {
   const g = t.grid;
   const rand = cryptoRand;
   const A = fighter(a, 'attacker', b);
   const B = fighter(b, 'defender', a);
   const alliesA = helpingAllies(a, b);
   const alliesB = helpingAllies(b, a);
-  const result = resolveConflict(A, B, rand);
+  const result = resolveConflict(A, B, rand, mode.boost ?? 1);
   const ca = t.codeOf(a);
   const cb = t.codeOf(b);
 
@@ -272,10 +318,9 @@ async function conflict(t: Territory, a: string, b: string) {
   let aPts = [aFront, ...near(samples.get(ca) ?? [], bFront)];
   let bPts = [bFront, ...near(samples.get(cb) ?? [], aFront)];
 
-  begin({ kind: 'conflict', a, b });
+  if (!mode.silent) begin({ kind: 'conflict', a, b });
   const winnerImg = result.winner ? flagImage(result.winner) : null;
-  renderer?.flyToBox(box, 120, 750);
-  await sleep(800);
+  await flyTo(box, mode);
 
   aPts = aPts.filter(view);
   bPts = bPts.filter(view);
@@ -317,19 +362,20 @@ async function conflict(t: Territory, a: string, b: string) {
         upset: result.upset,
         marks,
       });
-      sound.play('win');
+      if (!mode.silent) sound.play('win');
     } else {
       const mid: W = [(aFront[0] + bFront[0]) / 2, (aFront[1] + bFront[1]) / 2];
       t.apply({ kind: 'peace', a, b, at: [round1(mid[0]), round1(mid[1])], marks: { [a]: m.winner, [b]: m.loser } });
-      sound.play('peace');
+      if (!mode.silent) sound.play('peace');
     }
     undoVersion = t.version;
   };
   const pa = Math.pow(Math.max(A.power, 1), 2);
   const pb = Math.pow(Math.max(B.power, 1), 2);
 
-  if (fx) {
-    await new Promise<void>((resolve) =>
+  await show(
+    mode,
+    (done) =>
       playBattle(fx!, {
         aPts,
         bPts,
@@ -344,13 +390,13 @@ async function conflict(t: Territory, a: string, b: string) {
         winnerFlag: winnerImg,
         winnerColors: result.winner ? [colorOf(result.winner)] : [],
         climax: apply,
-        done: resolve,
+        done,
       }),
-    );
-  } else apply();
+    apply,
+  );
 
   const km2 = plan ? (outcome === 'conquest' ? loserKm2Before : loserKm2Before - (t.statsFor(loser)?.currentKm2 ?? 0)) : 0;
-  finish({
+  return {
     kind: 'conflict',
     a,
     b,
@@ -367,7 +413,7 @@ async function conflict(t: Territory, a: string, b: string) {
     recovered: winnerWasWeak,
     allies: [...alliesA, ...alliesB],
     damage: outcome === 'partial' ? { id: result.loser!, ...m.loser } : null,
-  });
+  };
 }
 
 /** The cell of `code`'s land closest to cell `from` (searching outward in rings). */
@@ -432,12 +478,13 @@ export async function runDisaster(id?: string, type?: string): Promise<void> {
   if (!target || !playable(target)) return;
   busy = true;
   lastDisaster = { id, type, random: !id };
+  let report: SimReport | null = null;
   try {
-    await disaster(t, target, type);
+    report = await disaster(t, target, type);
   } catch (e) {
     console.error('Disaster simulation failed', e);
-    finish(null);
   }
+  finish(report);
 }
 
 export function rerunDisaster() {
@@ -445,7 +492,7 @@ export function rerunDisaster() {
   return d?.random ? runDisaster() : runDisaster(d?.id, d?.type);
 }
 
-async function disaster(t: Territory, id: string, type?: string) {
+export async function disaster(t: Territory, id: string, type?: string, mode: Mode = {}): Promise<SimReport> {
   const rand = cryptoRand;
   const def = (type && DISASTER_BY_ID.get(type)) || pickDisaster(placeFacts(id), rand);
   const severity = rollSeverity(def, rand);
@@ -455,9 +502,8 @@ async function disaster(t: Territory, id: string, type?: string) {
   const lp = renderer?.labelPoint(id) ?? [0, 0];
   const mainBox = renderer?.countryBox(id) ?? pad(boxOf([lp]), 0, 4);
 
-  begin({ kind: 'disaster', a: id, type: def.id });
-  renderer?.flyToBox(pad(mainBox, 0.35, 1), 120, 750);
-  await sleep(800);
+  if (!mode.silent) begin({ kind: 'disaster', a: id, type: def.id });
+  await flyTo(pad(mainBox, 0.35, 1), mode);
 
   const view = inBox(pad(mainBox, 0.1, 0));
   const pts = (sampleCells(g, [code], 120, rand).get(code) ?? []).filter(view).slice(0, 12);
@@ -474,15 +520,345 @@ async function disaster(t: Territory, id: string, type?: string) {
   const apply = () => {
     t.apply({ kind: 'disaster', id, type: def.id, severity, at: [round1(center[0]), round1(center[1])] });
     undoVersion = t.version;
-    sound.play('sting');
+    if (!mode.silent) sound.play('sting');
   };
-  if (fx) {
-    await new Promise<void>((resolve) =>
-      playDisaster(fx!, { type: def.id, center, pts: pts.length ? pts : [center], R, seaDir: sea, climax: apply, done: resolve }),
-    );
-  } else apply();
+  await show(mode, (done) => playDisaster(fx!, { type: def.id, center, pts: pts.length ? pts : [center], R, seaDir: sea, climax: apply, done }), apply);
 
-  finish({ kind: 'disaster', id, type: def.id, severity, powerBefore: before, powerAfter: battlePower(id), undoVersion });
+  return { kind: 'disaster', id, type: def.id, severity, powerBefore: before, powerAfter: battlePower(id), undoVersion };
+}
+
+// ---------------------------------------------------------------- world events
+
+const nameOf = (id: string) => game().countryById.get(id)?.name ?? id;
+
+/** Countries that could rebel now (a big part of their land is held by someone else). */
+export function rebels() {
+  const t = getTerritory();
+  return t ? rebellionCandidates(t).filter((c) => !game().countryById.get(c.id)?.disputed) : [];
+}
+
+/** A conquered country (or region) breaks free. */
+export async function rebellion(t: Territory, id: string, from: string, mode: Mode = {}): Promise<SimReport | null> {
+  const plan = planRebellion(t, id, from);
+  if (!plan) return null;
+  const g = t.grid;
+  const at: W = plan.at ?? [500, 300];
+  const s = sampleCells(g, [t.codeOf(from)], 200, cryptoRand);
+  const region = plan.pieces.length ? [at] : [at];
+  let box: BBox = pad(boxOf([[at[0] - 12, at[1] - 8], [at[0] + 12, at[1] + 8]]), 0, 4);
+  const home = renderer?.countryBox(id);
+  if (home && home.maxX - home.minX < 160) box = boxOf([[home.minX, home.minY], [home.maxX, home.maxY]], box);
+  box = pad(box, 0.25, 3);
+  if (!mode.silent) begin({ kind: 'disaster', a: id, emoji: '✊', text: `${nameOf(id)} rebels against ${nameOf(from)}!` });
+  await flyTo(box, mode);
+  const view = inBox(box);
+  const occ = (s.get(t.codeOf(from)) ?? []).filter(view).sort((p, q) => dist2(p, at) - dist2(q, at)).slice(0, 12);
+  const spread = Array.from({ length: 8 }, () => [at[0] + (Math.random() - 0.5) * 6, at[1] + (Math.random() - 0.5) * 4] as W);
+  let undoVersion: number | null = null;
+  const apply = () => {
+    t.apply(plan);
+    undoVersion = t.version;
+    if (!mode.silent) sound.play('win');
+  };
+  await show(
+    mode,
+    (done) =>
+      playBattle(fx!, {
+        aPts: [...region, ...spread],
+        bPts: occ.length ? occ : spread,
+        aColor: colorOf(id),
+        bColor: colorOf(from),
+        aFire: 0.6,
+        outcome: 'partial',
+        winner: 'a',
+        target: at,
+        targetPx: 60,
+        loserPts: occ,
+        winnerFlag: flagImage(id),
+        winnerColors: [colorOf(id)],
+        climax: apply,
+        done,
+      }),
+    apply,
+  );
+  return {
+    kind: 'event',
+    emoji: '✊',
+    title: `${nameOf(id)} is free!`,
+    text: `${nameOf(id)} rebelled and took back ${formatArea(plan.km2 ?? 0)} from ${nameOf(from)}.`,
+    undoVersion,
+    again: 'rebellion',
+  };
+}
+
+export async function runRebellion(id?: string) {
+  const t = getTerritory();
+  if (busy || !t) return;
+  const list = rebels();
+  const c = id ? list.find((x) => x.id === id) : pickWeighted(list.map((x) => ({ item: x, weight: Math.sqrt(x.km2 + 1) })), cryptoRand);
+  if (!c) {
+    finish({ kind: 'event', emoji: '🙂', title: 'No rebellions', text: 'No country has lost enough land to rebel. Conquer something first!', undoVersion: null });
+    return;
+  }
+  busy = true;
+  let report: SimReport | null = null;
+  try {
+    report = await rebellion(t, c.id, c.from);
+  } catch (e) {
+    console.error('Rebellion failed', e);
+  }
+  finish(report);
+}
+
+/** A coastal country grows new land along its coast. */
+export async function coastGrowth(t: Territory, id: string, mode: Mode = {}): Promise<SimReport | null> {
+  const plan = planCoastGrowth(t, id, cryptoRand);
+  if (!plan) return null;
+  const before = t.statsFor(id)?.currentKm2 ?? 0;
+  const c = plan.action.circles;
+  const pts: W[] = [];
+  for (let i = 0; i < c.length; i += 3) pts.push([c[i], c[i + 1]]);
+  const r = Math.max(...pts.map((_, k) => c[k * 3 + 2]));
+  const box = pad(boxOf(pts.map((p) => [p[0], p[1]] as W)), 1.2, Math.max(6, r * 7));
+  if (!mode.silent) begin({ kind: 'disaster', a: id, emoji: '🏝️', text: `${nameOf(id)} builds new land!` });
+  await flyTo(box, mode);
+  let undoVersion: number | null = null;
+  const apply = () => {
+    t.apply(plan.action);
+    undoVersion = t.version;
+  };
+  await show(mode, (done) => playGrowth(fx!, { at: plan.at, pts, climax: apply, done }), apply);
+  const gained = (t.statsFor(id)?.currentKm2 ?? 0) - before;
+  return { kind: 'event', emoji: '🏝️', title: `${nameOf(id)} grew!`, text: `${nameOf(id)} built ${formatArea(Math.max(0, gained))} of new land along its coast.`, undoVersion, again: 'coast' };
+}
+
+export async function runCoastGrowth(id?: string) {
+  const t = getTerritory();
+  if (busy || !t) return;
+  const pickId = id ?? pick(playableIds().filter((x) => isCoastal(t.grid, t.codeOf(x))), cryptoRand);
+  if (!pickId) return;
+  busy = true;
+  let report: SimReport | null = null;
+  try {
+    report = await coastGrowth(t, pickId);
+  } catch (e) {
+    console.error('Coast growth failed', e);
+  }
+  finish(report);
+}
+
+/** Seas rise and every coast loses a little land. */
+export async function seaRise(t: Territory, mode: Mode = {}): Promise<SimReport | null> {
+  const plan = planSeaRise(t, cryptoRand);
+  if (!plan) return null;
+  if (!mode.silent) {
+    begin({ kind: 'disaster', a: '', emoji: '🌊', text: 'Sea levels are rising!' });
+    renderer?.showWholeWorld();
+    await sleep(mode.quick ? 450 : 800);
+  }
+  let undoVersion: number | null = null;
+  const apply = () => {
+    t.apply(plan.action);
+    undoVersion = t.version;
+  };
+  await show(mode, (done) => playSeaRise(fx!, { points: plan.points, climax: apply, done }), apply);
+  return { kind: 'event', emoji: '🌊', title: 'Seas rose!', text: 'Coasts all around the world lost a little land to the sea. Tiny islands may have disappeared!', undoVersion, again: 'sea' };
+}
+
+export async function runSeaRise() {
+  const t = getTerritory();
+  if (busy || !t) return;
+  busy = true;
+  let report: SimReport | null = null;
+  try {
+    report = await seaRise(t);
+  } catch (e) {
+    console.error('Sea rise failed', e);
+  }
+  finish(report);
+}
+
+/** Two neighbours become allies (or, sometimes, an alliance breaks up). */
+async function allianceEvent(t: Territory, mode: Mode): Promise<boolean> {
+  const breakUp = cryptoRand() < 0.3;
+  if (breakUp) {
+    const pairs: [string, string][] = [];
+    for (const id of playableIds()) for (const x of t.alliesOf(id)) if (id < x) pairs.push([id, x]);
+    if (pairs.length) {
+      const [a, b] = pick(pairs, cryptoRand);
+      t.apply({ kind: 'alliance', a, b, on: false });
+      if (!mode.silent) {
+        begin({ kind: 'disaster', a, emoji: '💔', text: `${nameOf(a)} and ${nameOf(b)} ended their alliance` });
+        await sleep(1100);
+      }
+      return true;
+    }
+  }
+  const p = randomPair();
+  if (!p || t.areAllies(p.a, p.b)) return false;
+  t.apply({ kind: 'alliance', a: p.a, b: p.b, on: true });
+  if (!mode.silent) {
+    begin({ kind: 'disaster', a: p.a, emoji: '🤝', text: `${nameOf(p.a)} and ${nameOf(p.b)} became allies` });
+    sound.play('peace');
+    await sleep(1100);
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------- simulate 1 year
+
+let skipRequested = false;
+let stopRequested = false;
+/** Skip the animations for the rest of the year (or world war). */
+export function skipRun() {
+  skipRequested = true;
+}
+export function stopRun() {
+  stopRequested = true;
+}
+
+/** Snapshot of everyone's land, to find the year's biggest winner and loser. */
+function landSnapshot(t: Territory) {
+  const m = new Map<string, number>();
+  for (const c of game().countries) m.set(c.id, t.statsFor(c.id)?.currentKm2 ?? 0);
+  return m;
+}
+
+/** One random thing that can happen in a year. Returns false if nothing happened. */
+async function randomEvent(t: Territory, mode: Mode): Promise<boolean> {
+  const rebelList = rebels();
+  const kinds = [
+    { item: 'conflict', weight: 45 },
+    { item: 'disaster', weight: 18 },
+    { item: 'alliance', weight: 9 },
+    { item: 'rebellion', weight: rebelList.length ? 12 : 0 },
+    { item: 'coast', weight: 12 },
+    { item: 'sea', weight: 3 },
+  ];
+  const kind = pickWeighted(kinds, cryptoRand);
+  switch (kind) {
+    case 'conflict': {
+      const p = randomPair();
+      if (!p || t.areAllies(p.a, p.b)) return false;
+      await conflict(t, p.a, p.b, mode);
+      return true;
+    }
+    case 'disaster': {
+      const id = randomNation();
+      if (!id) return false;
+      await disaster(t, id, undefined, mode);
+      return true;
+    }
+    case 'alliance':
+      return allianceEvent(t, mode);
+    case 'rebellion': {
+      const c = pickWeighted(rebelList.map((x) => ({ item: x, weight: Math.sqrt(x.km2 + 1) })), cryptoRand);
+      return !!(await rebellion(t, c.id, c.from, mode));
+    }
+    case 'coast': {
+      const id = pick(playableIds().filter((x) => isCoastal(t.grid, t.codeOf(x))), cryptoRand);
+      return !!(id && (await coastGrowth(t, id, mode)));
+    }
+    case 'sea':
+      return !!(await seaRise(t, mode));
+  }
+  return false;
+}
+
+/** Simulate one year: 6–10 random events in a row, then a "year in review". One Undo takes it all back. */
+export async function simulateYear() {
+  const t = getTerritory();
+  if (busy || !t) return;
+  busy = true;
+  skipRequested = stopRequested = false;
+  closeWindows();
+  const st = game();
+  st.setSimRunning('year');
+  const year = t.year() + 1;
+  const before = landSnapshot(t);
+  const mark = t.mark;
+  const n = 6 + Math.floor(cryptoRand() * 5);
+  let done = 0;
+  try {
+    for (let tries = 0; done < n && tries < n * 3 && !stopRequested; tries++) {
+      setBannerStep(`📅 Year ${year} · event ${done + 1} of ${n}`);
+      const happened = await randomEvent(t, skipRequested ? { silent: true } : { quick: true });
+      if (happened) done++;
+      if (skipRequested) await sleep(10);
+    }
+  } catch (e) {
+    console.error('Year simulation failed', e);
+  }
+  setBannerStep(undefined);
+  t.bundleYear(mark);
+  const after = landSnapshot(t);
+  let gainer: { id: string; km2: number } | undefined;
+  let loser: { id: string; km2: number } | undefined;
+  for (const [id, km2] of after) {
+    const d = km2 - (before.get(id) ?? 0);
+    if (d > 1 && (!gainer || d > gainer.km2)) gainer = { id, km2: d };
+    if (d < -1 && (!loser || d < -loser.km2)) loser = { id, km2: -d };
+  }
+  const last = t.activeActions().at(-1)!;
+  const entries = buildHistory([last], nameOf)
+    .filter((e) => e.action.kind !== 'year')
+    .map((e) => ({ emoji: e.emoji, text: e.text }));
+  st.setSimRunning(null);
+  sound.play('win');
+  finish({ kind: 'year', year, entries, gainer, loser, stopped: stopRequested, undoVersion: t.version });
+}
+
+// ---------------------------------------------------------------- world war
+
+/** Battles between neighbours, again and again, until one country rules the world (or Stop). */
+export async function startWorldWar(fast: boolean) {
+  const t = getTerritory();
+  if (busy || !t) return;
+  busy = true;
+  skipRequested = stopRequested = false;
+  closeWindows();
+  const st = game();
+  st.setSimRunning('war');
+  let battles = 0;
+  let champion: string | undefined;
+  try {
+    while (!stopRequested) {
+      const alive = playableIds();
+      if (alive.length <= 1) {
+        champion = alive[0];
+        break;
+      }
+      // Strong, big countries are more likely to start fights.
+      const a = pickWeighted(alive.map((id) => ({ item: id, weight: Math.pow(battlePower(id), 2) * Math.pow((t.statsFor(id)?.currentKm2 ?? 1) + 1, 0.25) })), cryptoRand);
+      const b = randomOpponent(a);
+      if (!b || t.areAllies(a, b)) continue;
+      battles++;
+      setBannerStep(`🌍 World War · battle ${battles} · ${alive.length} countries left`);
+      const silent = fast || skipRequested;
+      await conflict(t, a, b, silent ? { silent: true, boost: 1.8 } : { quick: true, boost: 1.8 });
+      if (silent) {
+        st.setSimBanner({ kind: 'conflict', a, b, step: `🌍 World War · battle ${battles} · ${alive.length} countries left` });
+        await sleep(120); // let the map redraw and taps (Stop!) through
+      }
+    }
+  } catch (e) {
+    console.error('World war failed', e);
+  }
+  setBannerStep(undefined);
+  st.setSimRunning(null);
+  const alive = playableIds();
+  let leader: { id: string; km2: number } | undefined;
+  for (const id of alive) {
+    const km2 = t.statsFor(id)?.currentKm2 ?? 0;
+    if (!leader || km2 > leader.km2) leader = { id, km2 };
+  }
+  if (champion && fx && renderer) {
+    renderer.showWholeWorld();
+    const lp = renderer.labelPoint(champion);
+    if (lp) for (let i = 0; i < 4; i++) setTimeout(() => fx?.firework(lp as W, [colorOf(champion!), '#ffd34d', '#ffffff'], 1.4), 600 + i * 350);
+    sound.play('win');
+  }
+  finish({ kind: 'war', battles, left: alive.length, leader, champion });
 }
 
 // ---------------------------------------------------------------- replays (history log)

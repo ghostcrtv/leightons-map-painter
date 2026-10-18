@@ -61,6 +61,7 @@ export function MapView() {
         attachMap(r, flags);
         if (window.location.search.includes('debug')) (window as unknown as { __map: MapRenderer; __sound: typeof sound }).__map = r;
         if (window.location.search.includes('debug')) (window as unknown as { __sound: typeof sound }).__sound = sound;
+        if (window.location.search.includes('debug')) (window as unknown as { __game: typeof useGame }).__game = useGame;
         const s = useGame.getState();
         r.setOptions({ showLabels: s.showLabels, showBorders: s.showBorders, showCapitals: s.showCapitals });
         r.setSelected(s.selectedId);

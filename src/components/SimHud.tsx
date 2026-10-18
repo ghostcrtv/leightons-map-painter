@@ -2,7 +2,9 @@ import { useGame } from '../game/store';
 import { mapController } from '../game/mapController';
 import { shareWord } from '../sim/conflict';
 import { DISASTER_BY_ID } from '../sim/disasters';
-import { lastConflictPair, rerunDisaster, runConflict, runRandomConflict, stopAutoBattles } from '../sim/runner';
+import {
+  lastConflictPair, rerunDisaster, runCoastGrowth, runConflict, runRandomConflict, runRebellion, runSeaRise, simulateYear, skipRun, stopAutoBattles, stopRun,
+} from '../sim/runner';
 import { severityWord, smokeWord } from '../sim/disasters';
 import { getTerritory } from '../territory/session';
 import { formatArea } from '../utils/format';
@@ -19,6 +21,7 @@ export function SimHud() {
   const banner = useGame((s) => s.simBanner);
   const report = useGame((s) => s.simReport);
   const auto = useGame((s) => s.simAuto);
+  const running = useGame((s) => s.simRunning);
   const byId = useGame((s) => s.countryById);
   const setReport = useGame((s) => s.setSimReport);
   // Hide the result card while a window is open on top of the map.
@@ -26,7 +29,7 @@ export function SimHud() {
   useGame((s) => s.territoryVersion);
   const name = (id?: string) => (id ? byId.get(id)?.name ?? id : '');
   const t = getTerritory();
-  const canUndo = !!report && report.undoVersion !== null && t?.version === report.undoVersion;
+  const canUndo = !!report && 'undoVersion' in report && report.undoVersion !== null && t?.version === report.undoVersion;
   const undo = () => {
     mapController.undo();
     setReport(null);
@@ -36,7 +39,12 @@ export function SimHud() {
     <>
       {banner && (
         <div className="sim-banner" role="status" aria-live="polite">
-          {banner.kind === 'conflict' ? (
+          {banner.text ? (
+            <>
+              <span className="hud-emoji">{banner.emoji}</span>
+              <strong>{banner.text}</strong>
+            </>
+          ) : banner.kind === 'conflict' ? (
             <>
               <Flag id={banner.a} />
               <strong>{name(banner.a)}</strong>
@@ -54,6 +62,17 @@ export function SimHud() {
               </strong>
             </>
           )}
+          {banner.step && <small className="banner-step">{banner.step}</small>}
+        </div>
+      )}
+      {running && (
+        <div className="run-controls">
+          <button className="btn secondary" onClick={skipRun}>
+            ⏩ {running === 'year' ? 'Skip to the end of the year' : 'Go fast'}
+          </button>
+          <button className="btn danger" onClick={stopRun}>
+            ■ Stop
+          </button>
         </div>
       )}
       {auto && (
@@ -62,7 +81,7 @@ export function SimHud() {
         </button>
       )}
       {report && !banner && !windowOpen && (
-        <div className={`sim-report ${report.kind === 'conflict' ? report.outcome : 'disaster'}`} role="status" aria-live="polite">
+        <div className={`sim-report ${report.kind === 'conflict' ? report.outcome : report.kind}`} role="status" aria-live="polite">
           <button className="icon-btn small report-close" aria-label="Close" onClick={() => setReport(null)}>
             <IconClose width={18} height={18} />
           </button>
@@ -132,6 +151,84 @@ export function SimHud() {
                   )}
                 </div>
               )}
+            </>
+          ) : report.kind === 'year' ? (
+            <>
+              <h3>📅 Year {report.year} in review</h3>
+              {report.stopped && <p className="odds-line">You stopped the year early.</p>}
+              <ul className="year-list">
+                {report.entries.length === 0 && <li>A quiet year. Nothing much happened!</li>}
+                {report.entries.map((e, i) => (
+                  <li key={i}>
+                    <span aria-hidden>{e.emoji}</span> {e.text}
+                  </li>
+                ))}
+              </ul>
+              {report.gainer && (
+                <p className="odds-line">
+                  📈 Biggest winner: <b>{name(report.gainer.id)}</b> (+{formatArea(report.gainer.km2)})
+                  {report.loser && (
+                    <>
+                      {' '}
+                      · 📉 Biggest loser: <b>{name(report.loser.id)}</b> (−{formatArea(report.loser.km2)})
+                    </>
+                  )}
+                </p>
+              )}
+              <div className="report-buttons">
+                <button className="btn primary" onClick={() => simulateYear()}>
+                  📅 Next year
+                </button>
+                {canUndo && (
+                  <button className="btn secondary" onClick={undo}>
+                    Undo the whole year
+                  </button>
+                )}
+              </div>
+            </>
+          ) : report.kind === 'war' ? (
+            <>
+              <h3>{report.champion ? `👑 ${name(report.champion)} rules the world!` : '🌍 World War paused'}</h3>
+              <p>
+                {report.battles} battle{report.battles === 1 ? '' : 's'} fought. {report.left} countr{report.left === 1 ? 'y' : 'ies'} left
+                {report.leader && !report.champion && (
+                  <>
+                    {' '}
+                    · biggest now: <b>{name(report.leader.id)}</b> ({formatArea(report.leader.km2)})
+                  </>
+                )}
+                .
+              </p>
+              <p className="odds-line">Every battle is in the History, and Undo takes them back one at a time.</p>
+              {!report.champion && (
+                <div className="report-buttons">
+                  <button className="btn primary" onClick={() => useGame.getState().setSimView('war')}>
+                    🌍 Keep going…
+                  </button>
+                </div>
+              )}
+            </>
+          ) : report.kind === 'event' ? (
+            <>
+              <h3>
+                {report.emoji} {report.title}
+              </h3>
+              <p>{report.text}</p>
+              <div className="report-buttons">
+                {report.again && (
+                  <button
+                    className="btn primary"
+                    onClick={() => (report.again === 'rebellion' ? runRebellion() : report.again === 'coast' ? runCoastGrowth() : runSeaRise())}
+                  >
+                    🎲 Another one
+                  </button>
+                )}
+                {canUndo && (
+                  <button className="btn secondary" onClick={undo}>
+                    Undo
+                  </button>
+                )}
+              </div>
             </>
           ) : (
             <>

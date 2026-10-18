@@ -92,3 +92,20 @@ describe('the world’s story', () => {
     expect(h[1].text).toBe('Germany took a Medium piece of Poland (60,000 km²)');
   });
 });
+
+describe('bundling a year', () => {
+  it('turns the year’s events into one action that undoes in one go', () => {
+    const t = makeWorld();
+    const mark = t.mark;
+    t.apply(t.planBattle('DE', 'PL', 0.2)!.action);
+    t.apply({ kind: 'disaster', id: 'FR', type: 'flood', severity: 0.1 });
+    t.bundleYear(mark);
+    expect(t.activeActions()).toHaveLength(1);
+    expect(t.year()).toBe(1);
+    expect(t.weakness('FR')).toBeCloseTo(0.1);
+    t.undo();
+    expect(t.statsFor('PL')!.lostKm2).toBe(0);
+    expect(t.weakness('FR')).toBe(0);
+    expect(t.year()).toBe(0);
+  });
+});

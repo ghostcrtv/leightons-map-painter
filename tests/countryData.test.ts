@@ -79,5 +79,8 @@ describe('country registry', () => {
     expect(area('Russia')).toBeGreaterThan(area('Canada'));
     expect(area('Germany')).toBeGreaterThan(300_000);
     expect(area('Germany')).toBeLessThan(400_000);
+    // No country can be bigger than Russia (an inside-out shape once made the Maldives bigger than the Earth).
+    for (const c of countries) expect(c.areaKm2, c.name).toBeLessThanOrEqual(area('Russia'));
+    expect(area('Maldives')).toBeLessThan(400);
   });
 });

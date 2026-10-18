@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.10.0 — 2026-10-18 — Bigger simulations (big phase, stage 3)
+
+- New: Simulate 1 year — 6–10 random events (battles, disasters, alliances, rebellions, coast
+  growth, rising seas), played quickly with Skip and Stop, then a Year in review with the
+  biggest winner and loser. The year number shows by the logo. One Undo takes back the year.
+- New: World War — neighbours fight with bigger results until one superpower rules the world
+  (watch, or go fast without animations; Stop any time).
+- New: Rebellion — a conquered country breaks free and takes its land back.
+- New: Coast growth (a country by the sea builds new land) and Sea level rise (every coast
+  loses a little land).
+- Fixed: the Maldives' size was wrong in the map data (bigger than the Earth!) — now 112 km².
+
 ## 0.9.0 — 2026-10-18 — Smarter battles (big phase, stage 2)
 
 - Changed: Nation 1 ATTACKS (Attack + Military + Money) and Nation 2 DEFENDS (Defense +

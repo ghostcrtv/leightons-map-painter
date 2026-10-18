@@ -24,6 +24,23 @@ import { fileURLToPath } from 'node:url';
 import * as simplify from 'topojson-simplify';
 import { quantize, feature } from 'topojson-client';
 import { geoArea } from 'd3-geo';
+
+/**
+ * Area in steradians, polygon by polygon. A polygon whose ring winds the "wrong" way is
+ * measured by d3 as the whole Earth minus the island (this made the Maldives bigger than the
+ * Earth): any polygon over half the sphere is flipped back to the small side.
+ */
+function realArea(f) {
+  const geom = f.geometry;
+  if (!geom) return 0;
+  const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.type === 'MultiPolygon' ? geom.coordinates : [];
+  let total = 0;
+  for (const coordinates of polys) {
+    const a = geoArea({ type: 'Polygon', coordinates });
+    total += a > 2 * Math.PI ? 4 * Math.PI - a : a;
+  }
+  return total;
+}
 import { Resvg } from '@resvg/resvg-js';
 import { PNG } from 'pngjs';
 
@@ -133,7 +150,7 @@ for (const g of world.objects.countries.geometries) {
   g.id = id;
   g.properties = { name };
   // Real-world area from the full-detail 10m data (steradians -> km²).
-  const rawKm2 = geoArea(feature(world, g)) * 6371.0088 ** 2;
+  const rawKm2 = realArea(feature(world, g)) * 6371.0088 ** 2;
   const areaKm2 = rawKm2 < 100 ? Math.round(rawKm2 * 100) / 100 : Math.round(rawKm2);
   registry.push({ id, name, flag, disputed, areaKm2 });
 }

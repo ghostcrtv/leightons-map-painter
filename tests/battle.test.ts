@@ -211,3 +211,38 @@ describe('land tool: new land and erosion', () => {
     expect(t2.ownerAt(53, 20)).toBe('DE');
   });
 });
+
+import { planCoastGrowth, planRebellion, planSeaRise, rebellionCandidates } from '../src/territory/events';
+import { seeded } from '../src/sim/random';
+
+describe('world events', () => {
+  it('rebellions: a conquered country takes its real land back', () => {
+    const t = makeWorld();
+    t.apply(t.planBattle('DE', 'PL', 1)!.action);
+    const c = rebellionCandidates(t);
+    expect(c[0]).toMatchObject({ id: 'PL', from: 'DE' });
+    const r = planRebellion(t, 'PL', 'DE')!;
+    t.apply(r);
+    expect(t.isConquered('PL')).toBe(false);
+    expect(t.statsFor('PL')!.lostKm2).toBeCloseTo(0, -2);
+    expect(t.statsFor('DE')!.gainedKm2).toBeCloseTo(0, -2);
+    expect(rebellionCandidates(t).some((x) => x.id === 'PL')).toBe(false);
+  });
+
+  it('coast growth adds new land next to the coast', () => {
+    const t = makeWorld();
+    const plan = planCoastGrowth(t, 'IS', seeded(4))!; // the island
+    t.apply(plan.action);
+    expect(t.statsFor('IS')!.gainedKm2).toBeGreaterThan(200);
+    expect(t.statsFor('IS')!.lostKm2).toBe(0);
+  });
+
+  it('rising seas erode coasts a little everywhere', () => {
+    const t = makeWorld();
+    const plan = planSeaRise(t, seeded(9), 40)!;
+    t.apply(plan.action);
+    const lost = ['DE', 'PL', 'FR', 'IS'].reduce((s, id) => s + t.statsFor(id)!.lostKm2, 0);
+    expect(lost).toBeGreaterThan(0);
+    expect(t.statsFor('DE')!.currentKm2).toBeGreaterThan(t.statsFor('DE')!.originalKm2 * 0.8);
+  });
+});

@@ -277,3 +277,33 @@ export function playDisaster(fx: Effects, s: DisasterShow) {
   if (climaxAt < 99) tl.at(climaxAt, s.climax);
   fx.add(tl);
 }
+
+/** New land rising from the sea: golden sparkles, rings and a splash. ~2.4 s. */
+export function playGrowth(fx: Effects, s: { at: W; pts: W[]; climax: () => void; done: () => void }) {
+  const tl = new Timeline(2.4, s.done);
+  sound.play('splash');
+  tl.every(0, 1.6, 0.03, () => {
+    const p = fx.offset(fx.pick(s.pts.length ? s.pts : [s.at]), fx.between(-14, 14), fx.between(-10, 10));
+    fx.spawn(p, { kind: 'glow', color: fx.pick(['#ffe082', '#a5d6a7', '#ffffff', '#66bb6a']), size: fx.between(4, 8), size1: 1, life: 0.9, vy: -fx.between(20, 50), fadeIn: 0.1 });
+  });
+  for (const [i, p] of s.pts.slice(0, 6).entries()) fx.add(new Ring(p, 4, 46, 0.9, 'rgba(165,214,167,0.9)', 3, i * 0.12));
+  tl.at(0.9, () => {
+    s.climax();
+    sound.play('fill');
+    fx.confetti(s.at, ['#66bb6a', '#ffd34d', '#ffffff'], 18);
+  });
+  fx.add(tl);
+}
+
+/** Seas rise all over the world: blue ripples on many coasts. ~2.8 s. */
+export function playSeaRise(fx: Effects, s: { points: W[]; climax: () => void; done: () => void }) {
+  const tl = new Timeline(2.8, s.done);
+  sound.play('wave');
+  const pts = s.points.slice(0, 60);
+  pts.forEach((p, i) => fx.add(new Ring(p, 2, 22, 1.1, 'rgba(144,202,249,0.9)', 2, (i % 12) * 0.08)));
+  tl.at(1.2, () => {
+    s.climax();
+    pts.forEach((p, i) => fx.add(new Ring(p, 2, 16, 0.9, 'rgba(255,255,255,0.8)', 1.5, (i % 8) * 0.05)));
+  });
+  fx.add(tl);
+}

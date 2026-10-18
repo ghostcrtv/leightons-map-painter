@@ -73,6 +73,8 @@ export class Effects {
   private shakeAmount = 0;
   private shaken = false;
   readonly rand: Rand = cryptoRand;
+  /** Play speed (2 = twice as fast: used when simulating a whole year). */
+  speed = 1;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -273,7 +275,7 @@ export class Effects {
     const stepDt = onlySmoke ? (now - this.lastDraw) / 1000 : dt;
     if (onlySmoke && now - this.lastDraw < 32) return;
     this.lastDraw = now;
-    this.step(Math.min(0.1, stepDt));
+    this.step(Math.min(0.1, stepDt) * this.speed);
     this.draw();
   };
 

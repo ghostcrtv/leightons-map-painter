@@ -1,6 +1,6 @@
 import type { ConflictOdds, ConflictOutcome } from './conflict';
 
-export type SimView = 'menu' | 'conflict' | 'disaster';
+export type SimView = 'menu' | 'conflict' | 'disaster' | 'war' | 'rebellion' | 'coast';
 
 /** Shown at the top of the map while a simulation plays. */
 export interface SimBanner {
@@ -9,6 +9,11 @@ export interface SimBanner {
   b?: string;
   /** Disaster type id. */
   type?: string;
+  /** Extra line, e.g. "Year 3 · event 4 of 9". */
+  step?: string;
+  /** Custom banner text (rebellions, coasts, sea level, world war). */
+  text?: string;
+  emoji?: string;
 }
 
 export type SimReport =
@@ -34,6 +39,31 @@ export type SimReport =
       allies: string[];
       /** War damage to the loser (partial wins). */
       damage: { id: string; military: number; money: number } | null;
+    }
+  | {
+      /** One world event: rebellion, coast growth, rising seas, alliance. */
+      kind: 'event';
+      emoji: string;
+      title: string;
+      text: string;
+      undoVersion: number | null;
+      again?: 'rebellion' | 'coast' | 'sea';
+    }
+  | {
+      kind: 'year';
+      year: number;
+      entries: { emoji: string; text: string }[];
+      gainer?: { id: string; km2: number };
+      loser?: { id: string; km2: number };
+      stopped: boolean;
+      undoVersion: number | null;
+    }
+  | {
+      kind: 'war';
+      battles: number;
+      left: number;
+      leader?: { id: string; km2: number };
+      champion?: string;
     }
   | {
       kind: 'disaster';

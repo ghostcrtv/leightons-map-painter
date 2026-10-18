@@ -285,6 +285,31 @@ export class Territory {
     this.run({ kind: 'resetWorld' });
   }
 
+  /** A bookmark in the action list (see bundleYear). */
+  get mark(): number {
+    return this.applied.length;
+  }
+
+  /**
+   * Turn everything applied since `from` into ONE "year" action (so a whole simulated year
+   * is undone in one go and shows as one year in the history). Adds the year even if nothing
+   * happened.
+   */
+  bundleYear(from: number) {
+    this.stroke && this.cancelStroke();
+    const taken = this.applied.splice(from);
+    const diff = TerritoryGrid.emptyDiff();
+    for (const t of taken) {
+      diff.cells.push(...t.diff.cells);
+      diff.old.push(...t.diff.old);
+      diff.tiny.push(...t.diff.tiny);
+      diff.tinyOld.push(...t.diff.tinyOld);
+    }
+    this.applied.push({ action: { kind: 'year', events: taken.map((t) => t.action) }, diff });
+    this.redoStack = [];
+    this.changed();
+  }
+
   /** Apply a finished action (used by simulations). */
   apply(action: Action) {
     this.run(action);
@@ -540,6 +565,9 @@ export class Territory {
           break;
         case 'peace':
           addAll(a.marks);
+          break;
+        case 'rebellion':
+          weak.delete(a.id); // breaking free counts as a win
           break;
         case 'alliance':
           ally(a.a, a.b, a.on);
