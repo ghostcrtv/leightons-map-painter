@@ -25,7 +25,7 @@ export function SimHud() {
   const byId = useGame((s) => s.countryById);
   const setReport = useGame((s) => s.setSimReport);
   // Hide the result card while a window is open on top of the map.
-  const windowOpen = useGame((s) => !!s.simView || s.worldsOpen || s.historyOpen || s.actionsOpen || s.rankingsOpen || s.helpOpen || s.settingsOpen || s.tourOpen);
+  const windowOpen = useGame((s) => !!s.simView || s.worldsOpen || s.historyOpen || !!s.designer || s.badgesOpen || s.leaderboardOpen || s.actionsOpen || s.rankingsOpen || s.helpOpen || s.settingsOpen || s.tourOpen);
   useGame((s) => s.territoryVersion);
   const name = (id?: string) => (id ? byId.get(id)?.name ?? id : '');
   const t = getTerritory();

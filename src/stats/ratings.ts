@@ -62,10 +62,18 @@ export class StatsBook {
   private listeners = new Set<() => void>();
   private rankCache: { version: number; rows: RankRow[]; byId: Map<string, RankRow> } | null = null;
 
+  /** Countries shown in rankings (custom-country slots that aren't used are left out). */
+  private visible: Set<string> | null = null;
+
+  setVisible(ids: string[] | null) {
+    this.visible = ids ? new Set(ids) : null;
+    this.changed();
+  }
+
   /** `defaults`: id → [attack, defense, money, military] (public/data/stats.json). */
   constructor(defaults: Record<string, number[]>, private ids: string[]) {
     for (const id of ids) {
-      const d = defaults[id] ?? [10, 20, 20, 10];
+      const d = defaults[id] ?? (id.startsWith('custom-') ? [50, 50, 50, 50] : [10, 20, 20, 10]);
       this.defaults.set(id, { attack: clampRating(d[0]), defense: clampRating(d[1]), money: clampRating(d[2]), military: clampRating(d[3]) });
     }
   }
@@ -136,7 +144,7 @@ export class StatsBook {
 
   private rankData() {
     if (this.rankCache?.version === this.version) return this.rankCache;
-    const rows = this.ids.map((id) => {
+    const rows = this.ids.filter((id) => !this.visible || this.visible.has(id)).map((id) => {
       const ratings = this.get(id);
       return { id, ratings, power: powerScore(ratings), rank: 0 };
     });

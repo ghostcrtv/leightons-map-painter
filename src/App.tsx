@@ -14,6 +14,9 @@ import { SimulationDialog } from './components/SimulationDialog';
 import { SimHud } from './components/SimHud';
 import { WorldsDialog } from './components/WorldsDialog';
 import { HistoryDialog } from './components/HistoryDialog';
+import { CountryDesigner } from './components/CountryDesigner';
+import { BadgesDialog, BadgeToast } from './components/BadgesDialog';
+import { LeaderboardDialog } from './components/LeaderboardDialog';
 import { readSetting } from './utils/settings';
 
 export default function App() {
@@ -28,6 +31,9 @@ export default function App() {
   const simView = useGame((s) => s.simView);
   const worldsOpen = useGame((s) => s.worldsOpen);
   const historyOpen = useGame((s) => s.historyOpen);
+  const designer = useGame((s) => s.designer);
+  const badgesOpen = useGame((s) => s.badgesOpen);
+  const leaderboardOpen = useGame((s) => s.leaderboardOpen);
   const saveProblem = useGame((s) => s.saveProblem);
 
   // First visit: show the welcome tour once the map is ready.
@@ -73,6 +79,10 @@ export default function App() {
       {simView && <SimulationDialog />}
       {worldsOpen && <WorldsDialog />}
       {historyOpen && <HistoryDialog />}
+      {designer && <CountryDesigner />}
+      {badgesOpen && <BadgesDialog />}
+      {leaderboardOpen && <LeaderboardDialog />}
+      {status === 'ready' && <BadgeToast />}
       {saveProblem && status === 'ready' && <div className="save-problem" role="alert">{saveProblem}</div>}
       {tourOpen && <WelcomeTour />}
     </div>

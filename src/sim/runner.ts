@@ -19,6 +19,7 @@ import { DISASTER_BY_ID, likelyDisasters, pickDisaster, rollSeverity, type Disas
 import type { Effects, W } from './effects';
 import { cryptoRand, pick, pickWeighted, type Rand } from './random';
 import { formatArea } from '../utils/format';
+import { unlock } from '../game/achievements';
 import { playBattle, playDisaster, playGrowth, playSeaRise } from './shows';
 import { planCoastGrowth, planRebellion, planSeaRise, rebellionCandidates } from '../territory/events';
 import { buildHistory } from './history';
@@ -852,6 +853,7 @@ export async function startWorldWar(fast: boolean) {
     const km2 = t.statsFor(id)?.currentKm2 ?? 0;
     if (!leader || km2 > leader.km2) leader = { id, km2 };
   }
+  if (champion) unlock('world-champion');
   if (champion && fx && renderer) {
     renderer.showWholeWorld();
     const lp = renderer.labelPoint(champion);
@@ -868,6 +870,7 @@ export async function replay(a: Action) {
   const t = getTerritory();
   if (busy || !t || !fx || !renderer) return;
   busy = true;
+  unlock('history-buff');
   try {
     if (a.kind === 'battle' || a.kind === 'peace') {
       const first = a.kind === 'battle' ? a.attacker ?? a.winner : a.a;

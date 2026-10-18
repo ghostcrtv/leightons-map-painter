@@ -14,6 +14,7 @@ import { readSetting, writeSetting } from '../utils/settings';
 import { saveTextFile } from '../utils/files';
 import { copyName, metaOf, migrateWorld, newWorld, parseBackup, toBackupFile, type SavedWorld, type WorldMeta } from './model';
 import { getAllWorlds, getWorld, putWorld, removeWorld, requestPersistence } from './storage';
+import { unlock } from '../game/achievements';
 
 const OLD_AUTOSAVE_KEY = 'lmp.v1.autosave';
 let territory: Territory | null = null;
@@ -129,6 +130,7 @@ export async function createWorld(name: string) {
   const w = newWorld(name);
   await safePut(w);
   open(w);
+  if ((await getAllWorlds()).length >= 3) unlock('world-builder');
 }
 
 export async function renameWorld(id: string, name: string) {

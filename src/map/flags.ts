@@ -24,6 +24,8 @@ const DISPUTED_COLOR = '#9aa3ad';
 export class FlagLibrary {
   private large = new Map<string, HTMLImageElement | 'loading' | 'failed'>();
   private avgColors = new Map<string, string>();
+  /** Flags designed in the game (custom countries): code → picture. */
+  private custom = new Map<string, { canvas: HTMLCanvasElement; url: string; color: string }>();
 
   private constructor(
     private baseUrl: string,
@@ -47,11 +49,20 @@ export class FlagLibrary {
   }
 
   has(code: string | null): code is string {
-    return code != null && code in this.meta.index;
+    return code != null && (code in this.meta.index || this.custom.has(code));
+  }
+
+  /** Add (or replace) a flag designed in the game. */
+  setCustom(code: string, flag: { canvas: HTMLCanvasElement; url: string; color: string } | null) {
+    if (flag) this.custom.set(code, flag);
+    else this.custom.delete(code);
+    this.onImageLoaded();
   }
 
   /** URL of the sharp flag image, for use in the user interface. */
   largeUrl(code: string): string {
+    const c = this.custom.get(code);
+    if (c) return c.url;
     return `${this.baseUrl}flags/lg/${code}.png`;
   }
 
@@ -61,11 +72,13 @@ export class FlagLibrary {
    */
   averageColor(code: string | null): string {
     if (!code) return DISPUTED_COLOR;
-    return this.avgColors.get(code) ?? DISPUTED_COLOR;
+    return this.custom.get(code)?.color ?? this.avgColors.get(code) ?? DISPUTED_COLOR;
   }
 
   /** The best image to draw for a flag that will be `screenWidth` CSS px wide. */
   source(code: string, screenWidth: number): DrawSource | null {
+    const c = this.custom.get(code);
+    if (c) return { image: c.canvas, sx: 0, sy: 0, sw: c.canvas.width, sh: c.canvas.height };
     if (screenWidth >= LARGE_FLAG_THRESHOLD) {
       const big = this.large.get(code);
       if (big instanceof HTMLImageElement) {

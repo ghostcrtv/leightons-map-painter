@@ -1,3 +1,4 @@
+import { seeded } from '../src/sim/random';
 import { describe, expect, it } from 'vitest';
 import { TerritoryGrid } from '../src/territory/TerritoryGrid';
 import { Territory } from '../src/territory/Territory';
@@ -41,7 +42,7 @@ describe('neighbours', () => {
 
   it('neighbours change when borders move', () => {
     const t = makeWorld();
-    t.apply(t.planBattle('PL', 'DE', 1)!.action); // Poland conquers Germany (and the Vatican inside it)
+    t.apply(t.planBattle('PL', 'DE', 1, seeded(7))!.action); // Poland conquers Germany (and the Vatican inside it)
     expect(ids(t, touching(t.grid, t.codeOf('FR')))).toEqual(['PL']);
   });
 
@@ -57,7 +58,7 @@ describe('neighbours', () => {
 describe('battle results on the map', () => {
   it('a partial win takes about the planned share, next to the border, and undo restores it', () => {
     const t = makeWorld();
-    const plan = t.planBattle('DE', 'PL', 0.25)!;
+    const plan = t.planBattle('DE', 'PL', 0.25, seeded(7))!;
     expect(plan.action.outcome).toBe('partial');
     t.apply(plan.action);
     const pl = t.statsFor('PL')!;
@@ -76,9 +77,9 @@ describe('battle results on the map', () => {
 
   it('a conquest takes everything, including land the loser had taken', () => {
     const t = makeWorld();
-    t.apply(t.planBattle('PL', 'DE', 0.3)!.action); // Poland takes a chunk of Germany first
+    t.apply(t.planBattle('PL', 'DE', 0.3, seeded(7))!.action); // Poland takes a chunk of Germany first
     expect(t.statsFor('PL')!.gainedKm2).toBeGreaterThan(50_000);
-    t.apply(t.planBattle('DE', 'PL', 1)!.action); // then Germany conquers Poland
+    t.apply(t.planBattle('DE', 'PL', 1, seeded(7))!.action); // then Germany conquers Poland
     expect(t.isConquered('PL')).toBe(true);
     const de = t.statsFor('DE')!;
     expect(Math.round((de.currentKm2 / de.originalKm2) * 100)).toBe(187); // all of DE back + all of PL
@@ -86,7 +87,7 @@ describe('battle results on the map', () => {
 
   it('a tiny country cannot be split, so any win takes it all', () => {
     const t = makeWorld();
-    const plan = t.planBattle('DE', 'VA', 0.1)!;
+    const plan = t.planBattle('DE', 'VA', 0.1, seeded(7))!;
     expect(plan.action.outcome).toBe('conquest');
     t.apply(plan.action);
     expect(t.isConquered('VA')).toBe(true);
@@ -94,7 +95,7 @@ describe('battle results on the map', () => {
 
   it('saves and loads battles', () => {
     const t = makeWorld();
-    t.apply(t.planBattle('DE', 'PL', 0.4)!.action);
+    t.apply(t.planBattle('DE', 'PL', 0.4, seeded(7))!.action);
     const json = JSON.parse(JSON.stringify(t.toJSON()));
     const t2 = makeWorld();
     t2.load(json);
@@ -112,7 +113,7 @@ describe('disasters', () => {
     expect(t.weakness('PL')).toBeCloseTo(0.6);
     t.resetCountry('PL'); // resetting borders doesn't heal it…
     expect(t.weakness('PL')).toBeCloseTo(0.6);
-    t.apply(t.planBattle('PL', 'DE', 0.1)!.action); // …but winning a battle does
+    t.apply(t.planBattle('PL', 'DE', 0.1, seeded(7))!.action); // …but winning a battle does
     expect(t.weakness('PL')).toBe(0);
     t.undo();
     expect(t.weakness('PL')).toBeCloseTo(0.6);
@@ -203,7 +204,7 @@ describe('land tool: new land and erosion', () => {
   it('a conquest also takes the loser’s new land; saves keep it all', () => {
     const t = makeWorld();
     stroke(t, 'land', 53, 20, 2, 'PL');
-    t.apply(t.planBattle('DE', 'PL', 1)!.action);
+    t.apply(t.planBattle('DE', 'PL', 1, seeded(7))!.action);
     expect(t.ownerAt(53, 20)).toBe('DE');
     expect(t.isConquered('PL')).toBe(true);
     const t2 = makeWorld();
@@ -213,12 +214,11 @@ describe('land tool: new land and erosion', () => {
 });
 
 import { planCoastGrowth, planRebellion, planSeaRise, rebellionCandidates } from '../src/territory/events';
-import { seeded } from '../src/sim/random';
 
 describe('world events', () => {
   it('rebellions: a conquered country takes its real land back', () => {
     const t = makeWorld();
-    t.apply(t.planBattle('DE', 'PL', 1)!.action);
+    t.apply(t.planBattle('DE', 'PL', 1, seeded(7))!.action);
     const c = rebellionCandidates(t);
     expect(c[0]).toMatchObject({ id: 'PL', from: 'DE' });
     const r = planRebellion(t, 'PL', 'DE')!;

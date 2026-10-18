@@ -16,6 +16,7 @@ import {
 } from './icons';
 import { PowerCard } from './PowerCard';
 import { AlliesCard } from './AlliesCard';
+import { RenameForm } from './RenameForm';
 
 /**
  * Information about the tapped country. Right-hand panel on iPad landscape and
@@ -32,17 +33,19 @@ export function CountryPanel() {
   useGame((s) => s.territoryVersion); // re-read the numbers whenever territory changes
   const [confirmReset, setConfirmReset] = useState(false);
   const [editingStats, setEditingStats] = useState(false);
+  const [renaming, setRenaming] = useState(false);
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
     setConfirmReset(false);
     setEditingStats(false);
+    setRenaming(false);
   }, [selectedId]);
 
   const country = selectedId ? countryById.get(selectedId) : undefined;
 
   // Size ranking (largest = 1st). Disputed specks are left out of the ranking.
   const rankById = useMemo(() => {
-    const ranked = countries.filter((c) => !c.disputed).sort((a, b) => b.areaKm2 - a.areaKm2);
+    const ranked = countries.filter((c) => !c.disputed && !c.custom).sort((a, b) => b.areaKm2 - a.areaKm2);
     return { map: new Map(ranked.map((c, i) => [c.id, i + 1])), total: ranked.length };
   }, [countries]);
 
@@ -109,20 +112,29 @@ export function CountryPanel() {
         </div>
         <h2 className="country-name">{country.name}</h2>
         <p className="country-sub">
-          {country.disputed ? 'Disputed territory' : 'Country or territory'} · Code {country.id}
+          {country.custom ? 'Your own country' : country.disputed ? 'Disputed territory' : `Country or territory · Code ${country.id}`}
+          {!country.disputed && (
+            <button
+              className="chip mini rename-chip"
+              onClick={() => (country.custom ? useGame.getState().setDesigner({ id: country.id }) : setRenaming(true))}
+            >
+              ✏️ {country.custom ? 'Edit' : 'Rename'}
+            </button>
+          )}
         </p>
+        {renaming && <RenameForm id={country.id} onDone={() => setRenaming(false)} />}
       </div>
 
       <div className="panel-body">
         <section className="stat-card">
           <h3>Territory</h3>
-          <div className={`big-number${conquered ? ' conquered' : ''}`}>{shown.big}</div>
+          <div className={`big-number${conquered ? ' conquered' : ''}`}>{country.custom ? formatKm2(stats?.currentKm2 ?? 0) : shown.big}</div>
           <div className="meter" aria-hidden>
             <span style={{ width: `${(Math.min(ratio, 1) / track) * 100}%` }} />
             {ratio > 1 && <span className="extra" style={{ width: `${((ratio - 1) / track) * 100}%` }} />}
           </div>
           <p className="muted">
-            {conquered ? 'Conquered! It has no land left.' : shown.note}
+            {country.custom ? 'of land so far. Paint more, or build islands with the Land tool.' : conquered ? 'Conquered! It has no land left.' : shown.note}
             {!changed && !conquered && ' · nothing gained or lost yet'}
           </p>
           {changed && (
@@ -152,6 +164,7 @@ export function CountryPanel() {
                 <dd className="capital-name">★ {country.capital}</dd>
               </div>
             )}
+            {!country.custom && (
             <div>
               <dt>{changed ? 'Real size' : 'Size'}</dt>
               <dd>
@@ -159,7 +172,8 @@ export function CountryPanel() {
                 <small>{formatAreaMiles(country.areaKm2)}</small>
               </dd>
             </div>
-            {rank && (
+            )}
+            {rank && !country.custom && (
               <div>
                 <dt>Size rank</dt>
                 <dd>

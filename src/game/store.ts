@@ -59,6 +59,11 @@ interface GameState {
   worldVersion: number;
   worldsOpen: boolean;
   historyOpen: boolean;
+  /** Country designer: null = closed, {} = new country, {id} = edit. */
+  designer: { id?: string } | null;
+  badgeToast: string | null;
+  badgesOpen: boolean;
+  leaderboardOpen: boolean;
   /** Shown if saving failed (e.g. storage full). */
   saveProblem: string | null;
   selectedId: string | null;
@@ -89,10 +94,16 @@ interface GameState {
   worldChanged(): void;
   setWorldsOpen(v: boolean): void;
   setHistoryOpen(v: boolean): void;
+  setDesigner(v: { id?: string } | null): void;
+  setBadgeToast(v: string | null): void;
+  setBadgesOpen(v: boolean): void;
+  setLeaderboardOpen(v: boolean): void;
   setSaveProblem(v: string | null): void;
   setLoading(message: string): void;
   setError(message: string): void;
   setReady(countries: CountryInfo[]): void;
+  /** Replace the country list (custom countries added, names changed). */
+  setCountries(countries: CountryInfo[]): void;
   select(id: string | null): void;
   setPanelCollapsed(v: boolean): void;
   setHelpOpen(v: boolean): void;
@@ -131,6 +142,10 @@ export const useGame = create<GameState>((set) => ({
   worldVersion: 0,
   worldsOpen: false,
   historyOpen: false,
+  designer: null,
+  badgeToast: null,
+  badgesOpen: false,
+  leaderboardOpen: false,
   saveProblem: null,
   selectedId: null,
   panelCollapsed: false,
@@ -163,11 +178,16 @@ export const useGame = create<GameState>((set) => ({
   worldChanged: () => set((s) => ({ worldVersion: s.worldVersion + 1 })),
   setWorldsOpen: (worldsOpen) => set({ worldsOpen }),
   setHistoryOpen: (historyOpen) => set({ historyOpen }),
+  setDesigner: (designer) => set({ designer }),
+  setBadgeToast: (badgeToast) => set({ badgeToast }),
+  setBadgesOpen: (badgesOpen) => set({ badgesOpen }),
+  setLeaderboardOpen: (leaderboardOpen) => set({ leaderboardOpen }),
   setSaveProblem: (saveProblem) => set({ saveProblem }),
   setLoading: (loadingMessage) => set({ loadingMessage }),
   setError: (error) => set({ status: 'error', error }),
   setReady: (countries) =>
     set({ status: 'ready', countries, countryById: new Map(countries.map((c) => [c.id, c])) }),
+  setCountries: (countries) => set({ countries, countryById: new Map(countries.map((c) => [c.id, c])) }),
   select: (selectedId) => set({ selectedId, panelCollapsed: false }),
   setPanelCollapsed: (panelCollapsed) => set({ panelCollapsed }),
   setHelpOpen: (helpOpen) => set({ helpOpen }),

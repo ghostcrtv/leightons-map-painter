@@ -1,3 +1,4 @@
+import { seeded } from '../src/sim/random';
 import { describe, expect, it } from 'vitest';
 import { addMarks, allyBonus, battleMarks, healMarks, roleStrength, STRENGTH, withMarks } from '../src/sim/strength';
 import { TerritoryGrid } from '../src/territory/TerritoryGrid';
@@ -55,7 +56,7 @@ describe('the world’s story', () => {
     t.apply({ kind: 'alliance', a: 'DE', b: 'FR', on: true });
     expect(t.areAllies('FR', 'DE')).toBe(true);
     expect(t.alliesOf('DE')).toEqual(['FR']);
-    t.apply({ ...t.planBattle('DE', 'PL', 0.3)!.action, marks: { PL: { military: -8, money: -3 } }, attacker: 'DE', defender: 'PL', share: 0.3, km2: 90000 });
+    t.apply({ ...t.planBattle('DE', 'PL', 0.3, seeded(7))!.action, marks: { PL: { military: -8, money: -3 } }, attacker: 'DE', defender: 'PL', share: 0.3, km2: 90000 });
     expect(t.marksOf('PL')).toEqual({ military: -8, money: -3 });
     t.apply({ kind: 'peace', a: 'DE', b: 'PL', marks: { DE: { money: -1 }, PL: { money: -1 } } });
     expect(t.marksOf('PL').money).toBe(-4);
@@ -71,7 +72,7 @@ describe('the world’s story', () => {
 
   it('a year can hold its events (applied together, undone together)', () => {
     const t = makeWorld();
-    const battle = t.planBattle('PL', 'DE', 0.2)!.action;
+    const battle = t.planBattle('PL', 'DE', 0.2, seeded(7))!.action;
     t.apply({ kind: 'year', events: [battle, { kind: 'disaster', id: 'FR', type: 'flood', severity: 0.1 }] });
     expect(t.statsFor('DE')!.lostKm2).toBeGreaterThan(30_000);
     expect(t.weakness('FR')).toBeCloseTo(0.1);
@@ -86,7 +87,7 @@ describe('the world’s story', () => {
   it('writes a readable history, grouped by year', () => {
     const t = makeWorld();
     t.apply({ kind: 'alliance', a: 'DE', b: 'FR', on: true });
-    t.apply({ kind: 'year', events: [{ ...t.planBattle('DE', 'PL', 0.2)!.action, share: 0.2, km2: 60000 }] });
+    t.apply({ kind: 'year', events: [{ ...t.planBattle('DE', 'PL', 0.2, seeded(7))!.action, share: 0.2, km2: 60000 }] });
     const h = buildHistory(t.activeActions(), (id) => ({ DE: 'Germany', PL: 'Poland', FR: 'France' })[id] ?? id);
     expect(h.map((e) => [e.year, e.emoji])).toEqual([[0, '🤝'], [1, '⚔️'], [1, '📅']]);
     expect(h[1].text).toBe('Germany took a Medium piece of Poland (60,000 km²)');
@@ -97,7 +98,7 @@ describe('bundling a year', () => {
   it('turns the year’s events into one action that undoes in one go', () => {
     const t = makeWorld();
     const mark = t.mark;
-    t.apply(t.planBattle('DE', 'PL', 0.2)!.action);
+    t.apply(t.planBattle('DE', 'PL', 0.2, seeded(7))!.action);
     t.apply({ kind: 'disaster', id: 'FR', type: 'flood', severity: 0.1 });
     t.bundleYear(mark);
     expect(t.activeActions()).toHaveLength(1);

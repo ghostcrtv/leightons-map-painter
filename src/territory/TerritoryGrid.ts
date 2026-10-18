@@ -27,6 +27,8 @@ export interface GridCountry {
   realKm2: number;
   /** A point inside the country (for countries too small for the grid). */
   point: [number, number];
+  /** A country with no land on the real Earth (custom countries): never tracked by a point. */
+  virtual?: boolean;
 }
 
 export interface GridOptions {
@@ -109,7 +111,7 @@ export class TerritoryGrid {
       this.realKm2[code] = c.realKm2;
       this.tinyPoint[code] = c.point;
       const avgCell = this.rowKm2[this.rowOf(c.point[1])] || 1;
-      if (this.gridKm2[code] < avgCell * MIN_CELLS) this.tinyOwner[code] = code;
+      if (!c.virtual && this.gridKm2[code] < avgCell * MIN_CELLS) this.tinyOwner[code] = code;
     });
     this.current = this.original.slice();
     this.lostW = new Float64Array(this.count + 1);

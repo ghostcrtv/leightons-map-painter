@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sound } from '../audio/sound';
+import { bump } from '../game/achievements';
 import { useGame } from '../game/store';
 import { mapController } from '../game/mapController';
 import { WHEELS, landingAngle, optionAt, randomIndex, type WheelDef, type WheelOption } from '../actions/wheels';
@@ -66,6 +67,45 @@ export function ActionsDialog() {
               </span>
               <strong>History</strong>
               <small>Every battle, disaster and year — watch them again</small>
+            </button>
+            <button
+              className="action-card"
+              onClick={() => {
+                setOpen(false);
+                useGame.getState().setLeaderboardOpen(true);
+              }}
+            >
+              <span className="action-emoji" aria-hidden>
+                📊
+              </span>
+              <strong>Leaderboard</strong>
+              <small>Biggest, strongest, most wins and conquests</small>
+            </button>
+            <button
+              className="action-card"
+              onClick={() => {
+                setOpen(false);
+                useGame.getState().setDesigner({});
+              }}
+            >
+              <span className="action-emoji" aria-hidden>
+                🏳️
+              </span>
+              <strong>Create a country</strong>
+              <small>Name it, design its flag, paint its land</small>
+            </button>
+            <button
+              className="action-card"
+              onClick={() => {
+                setOpen(false);
+                useGame.getState().setBadgesOpen(true);
+              }}
+            >
+              <span className="action-emoji" aria-hidden>
+                🏅
+              </span>
+              <strong>Badges</strong>
+              <small>Achievements you’ve unlocked</small>
             </button>
           </div>
         </>
@@ -140,6 +180,7 @@ function WheelView({ wheel, onDone }: { wheel: WheelDef; onDone: () => void }) {
     setSpinning(true);
     setAngle((a) => landingAngle(a, index, options.length, reduceMotion ? 1 : 6, wobble));
     startTicks();
+    bump('spins');
   };
 
   const finished = () => {

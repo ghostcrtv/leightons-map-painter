@@ -38,6 +38,8 @@ export const mapController = {
   isCoastal: (id: string) => {
     const t = getTerritory();
     if (!t) return false;
+    // A brand-new custom country with no land yet can start on a new island.
+    if (id.startsWith('custom-') && (t.statsFor(id)?.currentKm2 ?? 0) <= 0) return true;
     const key = `${id}:${t.version}`;
     if (coastCache.key !== key) coastCache = { key, value: isCoastal(t.grid, t.codeOf(id)) };
     return coastCache.value;

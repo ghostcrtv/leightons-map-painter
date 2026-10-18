@@ -11,6 +11,9 @@ import { loadDetail, loadWorld } from './world';
 import { Effects } from '../sim/effects';
 import { attachSimulation, syncSmolder } from '../sim/runner';
 import { initWorlds } from '../worlds/session';
+import { CUSTOM_SLOT_IDS } from '../custom/slots';
+import { checkWorld } from '../game/achievements';
+import { attachCustoms } from '../custom/customs';
 import { sound } from '../audio/sound';
 
 const BASE = import.meta.env.BASE_URL;
@@ -52,13 +55,14 @@ export function MapView() {
         const [world, flags] = await Promise.all([
           loadWorld(BASE, registry, capitals),
           FlagLibrary.load(BASE),
-          loadStats(BASE, registry.map((c) => c.id)),
+          loadStats(BASE, [...registry.map((c) => c.id), ...CUSTOM_SLOT_IDS]),
         ]);
         if (cancelled) return;
 
         renderer = new MapRenderer(canvas, world, flags);
         const r = renderer;
         attachMap(r, flags);
+        attachCustoms(world, flags, r, registry); // custom countries + renamed countries per world
         if (window.location.search.includes('debug')) (window as unknown as { __map: MapRenderer; __sound: typeof sound }).__map = r;
         if (window.location.search.includes('debug')) (window as unknown as { __sound: typeof sound }).__sound = sound;
         if (window.location.search.includes('debug')) (window as unknown as { __game: typeof useGame }).__game = useGame;
@@ -234,10 +238,13 @@ export function MapView() {
             void initWorlds(t); // opens the last saved world (and saves changes from now on)
             // Smoke rises from weakened countries; keep it in step with the map.
             let smokeTimer = 0;
+            let badgeTimer = 0;
             const unsub = t.subscribe(() => {
               if (t.painting) return;
               clearTimeout(smokeTimer);
               smokeTimer = window.setTimeout(syncSmolder, 300);
+              clearTimeout(badgeTimer);
+              badgeTimer = window.setTimeout(() => checkWorld(t, useGame.getState().countries.map((c) => c.id)), 700);
             });
             cleanups.push(() => {
               unsub();
@@ -280,7 +287,7 @@ export function MapView() {
       const step = 120;
       const st = useGame.getState();
       // A window (Help, Settings, tour) is open: keys belong to it.
-      if (st.helpOpen || st.settingsOpen || st.tourOpen || st.actionsOpen || st.rankingsOpen || st.simView || st.worldsOpen || st.historyOpen) return;
+      if (st.helpOpen || st.settingsOpen || st.tourOpen || st.actionsOpen || st.rankingsOpen || st.simView || st.worldsOpen || st.historyOpen || st.designer || st.badgesOpen || st.leaderboardOpen) return;
       // Undo: Cmd/Ctrl+Z · Redo: Shift+Cmd/Ctrl+Z or Ctrl+Y
       if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'y')) {
         const redo = e.key === 'y' || e.shiftKey;

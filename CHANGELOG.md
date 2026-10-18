@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.11.0 — 2026-10-18 — Leighton's game (big phase, stage 4)
+
+- New: Create a country (Actions menu): name, capital, and a flag designer (stripes, cross,
+  diagonal, colours, a symbol like 🦖 or 👑). Then paint its land or build it an island.
+  Up to 24 per world; edit it any time from its country card.
+- New: Rename any country and its capital (✏️ on the country card); "Real names" puts them back.
+  Names belong to the world they were changed in.
+- New: Leaderboard (Actions menu): biggest, most powerful, grew the most, most wins, conquests.
+- New: 21 Badges to unlock, with a celebration when you get one (Actions menu → Badges).
+
 ## 0.10.0 — 2026-10-18 — Bigger simulations (big phase, stage 3)
 
 - New: Simulate 1 year — 6–10 random events (battles, disasters, alliances, rebellions, coast

@@ -335,7 +335,9 @@ export class MapRenderer {
 
   flyToCountry(id: string) {
     const c = this.world.byId.get(id);
-    if (c) this.flyToBox(c.mainBox);
+    if (!c) return;
+    const box = c.info.custom ? this.customArea(id)?.box : c.mainBox;
+    if (box) this.flyToBox(box);
   }
 
   /** Smoothly move the camera so `box` (world units) fills the space not covered by panels. */
@@ -364,12 +366,81 @@ export class MapRenderer {
 
   /** The main body of a country (biggest flag area), in world units. */
   countryBox(id: string): BBox | null {
-    return this.world.byId.get(id)?.mainBox ?? null;
+    const c = this.world.byId.get(id);
+    if (c?.info.custom) return this.customArea(id)?.box ?? null;
+    return c?.mainBox ?? null;
   }
 
   /** A good point inside a country (where its name goes). */
   labelPoint(id: string): [number, number] | null {
-    return this.world.byId.get(id)?.labelPoint ?? null;
+    const c = this.world.byId.get(id);
+    if (c?.info.custom) return this.customArea(id)?.label ?? null;
+    return c?.labelPoint ?? null;
+  }
+
+  /** Country names changed (renames, custom countries): redraw labels. */
+  namesChanged() {
+    this.customAreas = null;
+    this.invalidate();
+  }
+
+  private customAreas: { version: number; map: Map<string, { box: BBox; label: [number, number]; cells: number }> } | null = null;
+
+  /**
+   * Where a custom country's land is (it has no land on the real Earth): its box and a good
+   * label point (the owned cell nearest the middle). Worked out from the measuring grid.
+   */
+  private customArea(id: string) {
+    const t = this.territory;
+    if (!t) return null;
+    if (!this.customAreas || this.customAreas.version !== t.version) {
+      const map = new Map<string, { box: BBox; label: [number, number]; cells: number }>();
+      const codes = new Map<number, string>();
+      for (const c of this.world.byId.values()) if (c.info.custom) codes.set(t.codeOf(c.info.id), c.info.id);
+      if (codes.size) {
+        const g = t.grid;
+        const acc = new Map<number, { box: BBox; sx: number; sy: number; n: number; cells: number[] }>();
+        for (let i = 0; i < g.current.length; i++) {
+          const v = g.current[i];
+          if (!codes.has(v)) continue;
+          let a = acc.get(v);
+          if (!a) acc.set(v, (a = { box: emptyBBox(), sx: 0, sy: 0, n: 0, cells: [] }));
+          const x = ((i % g.cols) + 0.5) * g.cell;
+          const y = (Math.floor(i / g.cols) + 0.5) * g.cell;
+          a.box.minX = Math.min(a.box.minX, x - g.cell);
+          a.box.minY = Math.min(a.box.minY, y - g.cell);
+          a.box.maxX = Math.max(a.box.maxX, x + g.cell);
+          a.box.maxY = Math.max(a.box.maxY, y + g.cell);
+          a.sx += x;
+          a.sy += y;
+          a.n++;
+          if (a.cells.length < 4000) a.cells.push(i);
+        }
+        for (const [code, a] of acc) {
+          const cx = a.sx / a.n;
+          const cy = a.sy / a.n;
+          let best: [number, number] = [cx, cy];
+          let bd = Infinity;
+          for (const i of a.cells) {
+            const x = ((i % g.cols) + 0.5) * g.cell;
+            const y = (Math.floor(i / g.cols) + 0.5) * g.cell;
+            const d = (x - cx) ** 2 + (y - cy) ** 2;
+            if (d < bd) {
+              bd = d;
+              best = [x, y];
+            }
+          }
+          map.set(codes.get(code)!, { box: a.box, label: best, cells: a.n });
+        }
+      }
+      this.customAreas = { version: t.version, map };
+    }
+    return this.customAreas.map.get(id) ?? null;
+  }
+
+  /** Where a country's flag picture goes when it has painted land (custom countries have no home flag). */
+  private homeRect(owner: CountryShape, box: BBox): Rect {
+    return owner.clusters[0]?.flagRect ?? fitFlagRect(box);
   }
 
   /** Longitude/latitude of a world point. */
@@ -744,9 +815,11 @@ export class MapRenderer {
     ctx.lineJoin = 'round';
 
     const draw = (c: CountryShape, fs: number) => {
-      const [x, y0] = worldToScreen(cam, c.labelPoint[0], c.labelPoint[1]);
+      const lp = c.info.custom ? this.customArea(c.info.id)?.label : c.labelPoint;
+      if (!lp) return;
+      const [x, y0] = worldToScreen(cam, lp[0], lp[1]);
       // Tiny countries are shown as a dot: put the name above the dot, not on top of it.
-      const y = isTiny(c, s) ? y0 - MARKER_RADIUS - fs * 0.9 : y0;
+      const y = !c.info.custom && isTiny(c, s) ? y0 - MARKER_RADIUS - fs * 0.9 : y0;
       const w = this.unitWidth(c.info.name) * fs;
       const box = { x0: x - w / 2 - 3, y0: y - fs * 0.65, x1: x + w / 2 + 3, y1: y + fs * 0.65 };
       if (overlaps(placed, box)) return;
@@ -775,6 +848,18 @@ export class MapRenderer {
       if (fs < 10) continue;
       draw(c, Math.round(fs));
       count++;
+    }
+    // Custom countries (their land comes from painting, battles and new land).
+    for (const c of this.world.byId.values()) {
+      if (!c.info.custom || c === selected) continue;
+      const a = this.customArea(c.info.id);
+      if (!a || !bboxIntersects(a.box, visible)) continue;
+      const bw = bboxWidth(a.box) * s;
+      const bh = bboxHeight(a.box) * s;
+      if (bw < 24 || bh < 8) continue;
+      let fs = clamp(Math.min(bw / 7, bh / 2.2), 0, 20);
+      fs = Math.min(fs, (bw * 0.95) / this.unitWidth(c.info.name));
+      if (fs >= 10) draw(c, Math.round(fs));
     }
   }
 
@@ -858,7 +943,7 @@ export class MapRenderer {
         // New land made from the sea: the owner's flag, only where there was sea.
         const owner = this.world.byId.get(layer.owner!);
         if (!owner) continue;
-        const rect = this.ownerGroups().layer.get(layer.key) ?? owner.clusters[0].flagRect;
+        const rect = this.ownerGroups().layer.get(layer.key) ?? this.homeRect(owner, clip.box);
         const px = Math.max(bboxWidth(clip.box), bboxHeight(clip.box)) * s;
         const waterKey = `${clip.cacheKey}|${lod}|water`;
         live.add(waterKey);
@@ -877,7 +962,7 @@ export class MapRenderer {
       if (layer.kind === 'paint') {
         const owner = this.world.byId.get(layer.owner!);
         if (!owner) continue;
-        const rect = this.ownerGroups().layer.get(layer.key) ?? owner.clusters[0].flagRect;
+        const rect = this.ownerGroups().layer.get(layer.key) ?? this.homeRect(owner, clip.box);
         const code = owner.info.flag;
         const px = Math.max(bboxWidth(clip.box), bboxHeight(clip.box)) * s;
         // Paint only covers land: the locked country, or (older strokes) all land underneath.
@@ -986,7 +1071,7 @@ export class MapRenderer {
     if (kind === 'land') {
       const owner = ownerId ? this.world.byId.get(ownerId) : undefined;
       ctx.clip(this.waterUnder(box, live.lod, null), 'evenodd');
-      if (owner) this.fillWithFlag(ctx, path, 'nonzero', owner.info.flag, live.rect ?? owner.clusters[0].flagRect, MIN_FLAG_PX * 4, s);
+      if (owner) this.fillWithFlag(ctx, path, 'nonzero', owner.info.flag, live.rect ?? this.homeRect(owner, box), MIN_FLAG_PX * 4, s);
       ctx.restore();
       live.drawn = circles.length;
       return;
@@ -995,7 +1080,7 @@ export class MapRenderer {
     if (kind === 'paint') {
       const owner = ownerId ? this.world.byId.get(ownerId) : undefined;
       if (owner) {
-        const rect = live.rect ?? owner.clusters[0].flagRect;
+        const rect = live.rect ?? this.homeRect(owner, box);
         this.fillWithFlag(ctx, path, 'nonzero', owner.info.flag, rect, MIN_FLAG_PX * 4, s);
       }
     } else {

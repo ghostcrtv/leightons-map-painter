@@ -18,6 +18,8 @@ export interface CountryInfo {
   areaKm2: number;
   /** Capital city name (filled in from capitals.json; missing for uninhabited places). */
   capital?: string;
+  /** Invented by the player (a custom country with a designed flag). */
+  custom?: boolean;
 }
 
 export interface CapitalInfo {
