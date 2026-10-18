@@ -12,6 +12,9 @@ import { getTerritory } from '../territory/session';
 import type { Territory } from '../territory/Territory';
 import { cellCenter, frontCell, isCoastal, neighboursOf, sampleCells, seaDirection } from '../territory/regions';
 import { conflictOdds, resolveConflict, type Fighter } from './conflict';
+import { allyBonus, battleMarks, roleStrength, withMarks, type Marks, type Role } from './strength';
+import { powerScore, type Ratings } from '../stats/ratings';
+import type { Action } from '../territory/Territory';
 import { DISASTER_BY_ID, likelyDisasters, pickDisaster, rollSeverity, type DisasterDef, type PlaceFacts } from './disasters';
 import type { Effects, W } from './effects';
 import { cryptoRand, pick, pickWeighted, type Rand } from './random';
@@ -27,6 +30,7 @@ let lastDisaster: { id?: string; type?: string; random: boolean } | null = null;
 
 const game = () => useGame.getState();
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const round1 = (v: number) => Math.round(v * 10) / 10;
 
 /** Called by MapView once the map and effects layer exist. */
 export function attachSimulation(r: MapRenderer | null, effects: Effects | null) {
@@ -51,19 +55,50 @@ export function playableIds(): string[] {
   return game().countries.filter((c) => playable(c.id)).map((c) => c.id);
 }
 
-/** Power used in battles: the Power Score lowered by any disasters. */
+/** A country's ratings right now: the rating sheet plus any war damage in this world. */
+export function effectiveRatings(id: string): Ratings {
+  const base = getStats()?.get(id) ?? { attack: 10, defense: 20, money: 20, military: 10 };
+  return withMarks(base, getTerritory()?.marksOf(id));
+}
+
+/** Power Score right now (war damage and disasters included). Used for badges and reports. */
 export function battlePower(id: string): number {
-  const base = getStats()?.power(id) ?? 10;
   const weak = getTerritory()?.weakness(id) ?? 0;
-  return Math.round(base * (1 - weak) * 10) / 10;
+  return Math.round(powerScore(effectiveRatings(id)) * (1 - weak) * 10) / 10;
 }
 
-function fighter(id: string): Fighter {
-  return { id, power: battlePower(id), km2: getTerritory()?.statsFor(id)?.currentKm2 ?? 0 };
+/** Allies that would help `id` in a fight against `enemy` (not allies of both sides). */
+export function helpingAllies(id: string, enemy: string): string[] {
+  const t = getTerritory();
+  if (!t) return [];
+  return t.alliesOf(id).filter((x) => x !== enemy && !t.areAllies(x, enemy) && playable(x));
 }
 
+/** Battle strength of `id` in a role against `enemy`, including help from allies. */
+export function strengthOf(id: string, role: Role, enemy: string) {
+  const weak = getTerritory()?.weakness(id) ?? 0;
+  const own = roleStrength(effectiveRatings(id), role, weak);
+  const allies = helpingAllies(id, enemy);
+  const bonus = allyBonus(allies.map((x) => roleStrength(effectiveRatings(x), role, getTerritory()?.weakness(x) ?? 0)));
+  return { own, allies, bonus, total: own + bonus };
+}
+
+function fighter(id: string, role: Role, enemy: string): Fighter {
+  return { id, power: strengthOf(id, role, enemy).total, km2: getTerritory()?.statsFor(id)?.currentKm2 ?? 0 };
+}
+
+/** Chances when `a` attacks `b`. */
 export function oddsFor(a: string, b: string) {
-  return conflictOdds(fighter(a), fighter(b));
+  return conflictOdds(fighter(a, 'attacker', b), fighter(b, 'defender', a));
+}
+
+// ---------------------------------------------------------------- alliances
+
+export function setAlliance(a: string, b: string, on: boolean) {
+  const t = getTerritory();
+  if (!t || a === b || t.areAllies(a, b) === on) return;
+  t.apply({ kind: 'alliance', a, b, on });
+  sound.play(on ? 'peace' : 'tick');
 }
 
 /** A random country. Bigger countries come up more often than tiny specks (but specks still can). */
@@ -81,7 +116,7 @@ export function randomOpponent(id: string, rand: Rand = cryptoRand): string | nu
   if (!t) return null;
   const options = neighboursOf(t.grid, t.codeOf(id))
     .map((c) => t.idOf(c))
-    .filter((x): x is string => !!x && x !== id && playable(x));
+    .filter((x): x is string => !!x && x !== id && playable(x) && !t.areAllies(id, x));
   return options.length ? pick(options, rand) : randomNation(rand, id);
 }
 
@@ -168,7 +203,7 @@ function finish(report: SimReport | null) {
 
 export async function runConflict(a: string, b: string): Promise<void> {
   const t = getTerritory();
-  if (busy || !t || a === b || !playable(a) || !playable(b)) return;
+  if (busy || !t || a === b || !playable(a) || !playable(b) || t.areAllies(a, b)) return;
   busy = true;
   lastConflict = { a, b };
   try {
@@ -182,8 +217,10 @@ export async function runConflict(a: string, b: string): Promise<void> {
 async function conflict(t: Territory, a: string, b: string) {
   const g = t.grid;
   const rand = cryptoRand;
-  const A = fighter(a);
-  const B = fighter(b);
+  const A = fighter(a, 'attacker', b);
+  const B = fighter(b, 'defender', a);
+  const alliesA = helpingAllies(a, b);
+  const alliesB = helpingAllies(b, a);
   const result = resolveConflict(A, B, rand);
   const ca = t.codeOf(a);
   const cb = t.codeOf(b);
@@ -261,12 +298,32 @@ async function conflict(t: Territory, a: string, b: string) {
   }
 
   let undoVersion: number | null = null;
+  const m = battleMarks(outcome, result.share, result.upset);
   const apply = () => {
     if (plan) {
-      t.apply(plan.action);
-      undoVersion = t.version;
+      const w = result.winner!;
+      const l = result.loser!;
+      const km2 = outcome === 'conquest' ? loserKm2Before : plan.km2;
+      const marks: Record<string, Partial<Marks>> = { [w]: m.winner };
+      if (outcome === 'partial') marks[l] = m.loser;
+      t.apply({
+        ...plan.action,
+        attacker: a,
+        defender: b,
+        share: outcome === 'conquest' ? 1 : result.share,
+        km2: Math.round(km2),
+        at: [round1(target[0]), round1(target[1])],
+        allies: [...alliesA, ...alliesB],
+        upset: result.upset,
+        marks,
+      });
       sound.play('win');
-    } else sound.play('peace');
+    } else {
+      const mid: W = [(aFront[0] + bFront[0]) / 2, (aFront[1] + bFront[1]) / 2];
+      t.apply({ kind: 'peace', a, b, at: [round1(mid[0]), round1(mid[1])], marks: { [a]: m.winner, [b]: m.loser } });
+      sound.play('peace');
+    }
+    undoVersion = t.version;
   };
   const pa = Math.pow(Math.max(A.power, 1), 2);
   const pb = Math.pow(Math.max(B.power, 1), 2);
@@ -308,6 +365,8 @@ async function conflict(t: Territory, a: string, b: string) {
     bPower: B.power,
     undoVersion,
     recovered: winnerWasWeak,
+    allies: [...alliesA, ...alliesB],
+    damage: outcome === 'partial' ? { id: result.loser!, ...m.loser } : null,
   });
 }
 
@@ -413,7 +472,7 @@ async function disaster(t: Territory, id: string, type?: string) {
 
   let undoVersion: number | null = null;
   const apply = () => {
-    t.apply({ kind: 'disaster', id, type: def.id, severity });
+    t.apply({ kind: 'disaster', id, type: def.id, severity, at: [round1(center[0]), round1(center[1])] });
     undoVersion = t.version;
     sound.play('sting');
   };
@@ -424,6 +483,77 @@ async function disaster(t: Territory, id: string, type?: string) {
   } else apply();
 
   finish({ kind: 'disaster', id, type: def.id, severity, powerBefore: before, powerAfter: battlePower(id), undoVersion });
+}
+
+// ---------------------------------------------------------------- replays (history log)
+
+/** Play a past event's show again. The map doesn't change. */
+export async function replay(a: Action) {
+  const t = getTerritory();
+  if (busy || !t || !fx || !renderer) return;
+  busy = true;
+  try {
+    if (a.kind === 'battle' || a.kind === 'peace') {
+      const first = a.kind === 'battle' ? a.attacker ?? a.winner : a.a;
+      const second = a.kind === 'battle' ? a.defender ?? a.loser : a.b;
+      const at: W = a.at ?? (renderer.labelPoint(second) as W) ?? [500, 300];
+      const span = 30;
+      let box: BBox = { minX: at[0] - span, maxX: at[0] + span, minY: at[1] - span * 0.66, maxY: at[1] + span * 0.66 };
+      for (const id of [first, second]) {
+        const b = renderer.countryBox(id);
+        if (b && b.maxX - b.minX < 120) box = boxOf([[b.minX, b.minY], [b.maxX, b.maxY]], box);
+      }
+      begin({ kind: 'conflict', a: first, b: second });
+      renderer.flyToBox(pad(box, 0.1, 2), 120, 750);
+      await sleep(800);
+      const view = inBox(box);
+      const g = t.grid;
+      const s = sampleCells(g, [t.codeOf(first), t.codeOf(second)], 200, cryptoRand);
+      const near = (pts: W[]) => pts.filter(view).sort((p, q) => dist2(p, at) - dist2(q, at)).slice(0, 14);
+      const spread = (n: number) => Array.from({ length: n }, () => [at[0] + (Math.random() - 0.5) * 8, at[1] + (Math.random() - 0.5) * 6] as W);
+      let aPts = near(s.get(t.codeOf(first)) ?? []);
+      let bPts = near(s.get(t.codeOf(second)) ?? []);
+      if (!aPts.length) aPts = spread(6);
+      if (!bPts.length) bPts = spread(6);
+      const winnerSide = a.kind === 'battle' ? (a.winner === first ? 'a' : 'b') : undefined;
+      await new Promise<void>((resolve) =>
+        playBattle(fx!, {
+          aPts,
+          bPts,
+          aColor: colorOf(first),
+          bColor: colorOf(second),
+          aFire: 0.5,
+          outcome: a.kind === 'battle' ? a.outcome : 'peace',
+          winner: winnerSide,
+          target: at,
+          targetPx: 60,
+          loserPts: winnerSide === 'a' ? bPts : aPts,
+          winnerFlag: a.kind === 'battle' ? flagImage(a.winner) : null,
+          winnerColors: a.kind === 'battle' ? [colorOf(a.winner)] : [],
+          climax: () => sound.play(a.kind === 'battle' ? 'win' : 'peace'),
+          done: resolve,
+        }),
+      );
+    } else if (a.kind === 'disaster') {
+      const box = renderer.countryBox(a.id);
+      const lp = renderer.labelPoint(a.id);
+      const center: W = a.at ?? (lp as W) ?? [500, 300];
+      begin({ kind: 'disaster', a: a.id, type: a.type });
+      if (box) renderer.flyToBox(pad(box, 0.35, 1), 120, 750);
+      await sleep(800);
+      let R = 80;
+      if (box) {
+        const [x0, y0] = renderer.toScreen(box.minX, box.minY);
+        const [x1, y1] = renderer.toScreen(box.maxX, box.maxY);
+        R = Math.max(45, Math.min(220, Math.min(Math.abs(x1 - x0), Math.abs(y1 - y0)) / 2));
+      }
+      await new Promise<void>((resolve) =>
+        playDisaster(fx!, { type: a.type, center, pts: [center], R, seaDir: seaDirection(t.grid, center[0], center[1]), climax: () => sound.play('sting'), done: resolve }),
+      );
+    }
+  } finally {
+    finish(null);
+  }
 }
 
 // ---------------------------------------------------------------- smoke over weakened countries

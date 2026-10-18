@@ -5,6 +5,8 @@ import { RATING_KEYS, RATING_LABELS, type RatingKey } from '../stats/ratings';
 import { IconMinus, IconPlus } from './icons';
 import { getTerritory } from '../territory/session';
 import { DISASTER_BY_ID } from '../sim/disasters';
+import { effectiveRatings, playable } from '../sim/runner';
+import { roleStrength } from '../sim/strength';
 
 /** The country card's Power section: Power Score, rank and the four ratings (editable). */
 export function PowerCard({ id, editing, setEditing }: { id: string; editing: boolean; setEditing: (v: boolean) => void }) {
@@ -40,6 +42,7 @@ export function PowerCard({ id, editing, setEditing }: { id: string; editing: bo
         </p>
       </div>
       <WeakNote id={id} power={power} />
+      <BattleNote id={id} />
       <div className="ratings">
         {RATING_KEYS.map((k) => (
           <div key={k} className="rating">
@@ -110,5 +113,31 @@ function WeakNote({ id, power }: { id: string; power: number }) {
       <span aria-hidden>💨</span> Weakened by {hits.length === 1 ? 'a disaster' : `${hits.length} disasters`} {names}: fights at{' '}
       <b>{Math.round(power * (1 - weak))}</b> (−{Math.round(weak * 100)}%) until it wins a battle or the world is reset.
     </p>
+  );
+}
+
+/** How strong the country is in battles right now, and any war damage still healing. */
+function BattleNote({ id }: { id: string }) {
+  const t = getTerritory();
+  if (!t || !playable(id)) return null;
+  const r = effectiveRatings(id);
+  const weak = t.weakness(id);
+  const m = t.marksOf(id);
+  const sign = (v: number) => (v > 0 ? `+${v}` : `${v}`);
+  return (
+    <div className="battle-note">
+      <span>
+        ⚔️ Attacks at <b>{Math.round(roleStrength(r, 'attacker', weak))}</b>
+      </span>
+      <span>
+        🛡️ Defends at <b>{Math.round(roleStrength(r, 'defender', weak))}</b>
+      </span>
+      {(m.military !== 0 || m.money !== 0) && (
+        <small>
+          {m.military < 0 || m.money < 0 ? '🩹 War damage' : '💪 Battle-hardened'}:{' '}
+          {[m.military ? `Military ${sign(m.military)}` : '', m.money ? `Money ${sign(m.money)}` : ''].filter(Boolean).join(', ')} · heals each year
+        </small>
+      )}
+    </div>
   );
 }

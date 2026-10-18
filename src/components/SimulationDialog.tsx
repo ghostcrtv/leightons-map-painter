@@ -3,7 +3,8 @@ import { useGame } from '../game/store';
 import { mapController } from '../game/mapController';
 import { DISASTERS } from '../sim/disasters';
 import {
-  battlePower, likelyFor, oddsFor, playable, randomNation, randomOpponent, runConflict, runDisaster, startAutoBattles,
+  battlePower, likelyFor, oddsFor, playable, randomNation, randomOpponent, runConflict, runDisaster, setAlliance, startAutoBattles,
+  strengthOf,
 } from '../sim/runner';
 import { getTerritory } from '../territory/session';
 import { Modal } from './Modal';
@@ -127,8 +128,12 @@ function ConflictSetup() {
     else setB(v);
   };
   const shuffle = () => chooseA(RANDOM);
-  const ready = !!a && !!b && a !== b && playable(a) && playable(b);
+  const allied = !!a && !!b && a !== b && !!getTerritory()?.areAllies(a, b);
+  const ready = !!a && !!b && a !== b && playable(a) && playable(b) && !allied;
   const odds = ready ? oddsFor(a, b) : null;
+  const sa = ready ? strengthOf(a, 'attacker', b) : null;
+  const sb = ready ? strengthOf(b, 'defender', a) : null;
+  const allyNames = (ids: string[]) => ids.map((x) => countryById.get(x)?.name ?? x).join(', ');
   const pct = (v: number) => `${Math.round(v * 100)}%`;
   const nameA = countryById.get(a)?.name ?? '';
   const nameB = countryById.get(b)?.name ?? '';
@@ -136,13 +141,33 @@ function ConflictSetup() {
   return (
     <div className="sim-setup">
       <div className="versus">
-        <NationSelect id="sim-a" label="Nation 1" value={a} onChange={chooseA} randomLabel="Random nation" />
+        <NationSelect id="sim-a" label="Nation 1 · attacks ⚔️" value={a} onChange={chooseA} randomLabel="Random nation" />
         <div className="vs-badge" aria-hidden>
           VS
         </div>
-        <NationSelect id="sim-b" label="Nation 2" value={b} onChange={chooseB} randomLabel="Random neighbour" />
+        <NationSelect id="sim-b" label="Nation 2 · defends 🛡️" value={b} onChange={chooseB} randomLabel="Random neighbour" />
       </div>
       {a && b && a === b && <p className="sheet-msg bad">Pick two different nations.</p>}
+      {allied && (
+        <p className="sheet-msg bad allied-msg">
+          🤝 They’re allies, so they won’t fight.{' '}
+          <button className="chip" onClick={() => setAlliance(a, b, false)}>
+            Break the alliance
+          </button>
+        </p>
+      )}
+      {sa && sb && (
+        <div className="strengths">
+          <span>
+            ⚔️ Attack strength <b>{Math.round(sa.total)}</b>
+            {sa.allies.length > 0 && <small> incl. allies: {allyNames(sa.allies)}</small>}
+          </span>
+          <span>
+            🛡️ Defense strength <b>{Math.round(sb.total)}</b>
+            <small> incl. home bonus{sb.allies.length > 0 ? ` + allies: ${allyNames(sb.allies)}` : ''}</small>
+          </span>
+        </div>
+      )}
       {odds && (
         <div className="odds">
           <div className="odds-bar" aria-hidden>
@@ -175,8 +200,9 @@ function ConflictSetup() {
         </button>
       </div>
       <p className="muted small-print">
-        Winners can take a little land, a lot, or the whole country. Peace deals change nothing. Weakened countries fight at
-        lower power. Undo takes back any result. Auto battles keep picking random neighbours until you press Stop.
+        Nation 1 attacks with its Attack, Military and Money; Nation 2 defends with its Defense, Military and Money, plus a home
+        bonus. Allies help. Winners can take a little land, a lot, or the whole country; losers get war damage that heals over the
+        years. Weakened countries fight at lower power. Undo takes back any result.
       </p>
     </div>
   );

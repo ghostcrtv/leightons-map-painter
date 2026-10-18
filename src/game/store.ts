@@ -56,6 +56,7 @@ interface GameState {
   /** Bumps when the world changes (opened, renamed, names/custom countries edited). */
   worldVersion: number;
   worldsOpen: boolean;
+  historyOpen: boolean;
   /** Shown if saving failed (e.g. storage full). */
   saveProblem: string | null;
   selectedId: string | null;
@@ -84,6 +85,7 @@ interface GameState {
   setWorld(w: { id: string; name: string } | null): void;
   worldChanged(): void;
   setWorldsOpen(v: boolean): void;
+  setHistoryOpen(v: boolean): void;
   setSaveProblem(v: string | null): void;
   setLoading(message: string): void;
   setError(message: string): void;
@@ -124,6 +126,7 @@ export const useGame = create<GameState>((set) => ({
   world: null,
   worldVersion: 0,
   worldsOpen: false,
+  historyOpen: false,
   saveProblem: null,
   selectedId: null,
   panelCollapsed: false,
@@ -154,6 +157,7 @@ export const useGame = create<GameState>((set) => ({
   setWorld: (world) => set({ world }),
   worldChanged: () => set((s) => ({ worldVersion: s.worldVersion + 1 })),
   setWorldsOpen: (worldsOpen) => set({ worldsOpen }),
+  setHistoryOpen: (historyOpen) => set({ historyOpen }),
   setSaveProblem: (saveProblem) => set({ saveProblem }),
   setLoading: (loadingMessage) => set({ loadingMessage }),
   setError: (error) => set({ status: 'error', error }),

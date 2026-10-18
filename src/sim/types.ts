@@ -30,6 +30,10 @@ export type SimReport =
       undoVersion: number | null;
       /** The winner was weakened by disasters and has now recovered. */
       recovered: boolean;
+      /** Allies who joined in (both sides). */
+      allies: string[];
+      /** War damage to the loser (partial wins). */
+      damage: { id: string; military: number; money: number } | null;
     }
   | {
       kind: 'disaster';

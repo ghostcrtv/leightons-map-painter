@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.0 — 2026-10-18 — Smarter battles (big phase, stage 2)
+
+- Changed: Nation 1 ATTACKS (Attack + Military + Money) and Nation 2 DEFENDS (Defense +
+  Military + Money + a home bonus). Who attacks whom now matters.
+- New: alliances (country card → Allies). Allies help in battles and won't fight each other.
+- New: war damage — losers lose Military and Money; winners get battle-hardened. It heals a
+  little every simulated year.
+- New: History (Actions menu): every battle, peace deal, disaster and alliance, grouped by
+  year, with ▶ to watch it again. Peace deals are now recorded (and can be undone).
+
 ## 0.8.0 — 2026-10-18 — Saved worlds (big phase, stage 1)
 
 - New: Worlds menu (tap the logo): many named worlds, each saved automatically on the device

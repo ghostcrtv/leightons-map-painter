@@ -54,6 +54,19 @@ export function ActionsDialog() {
               <strong>Power rankings</strong>
               <small>Strongest countries, edit & import ratings</small>
             </button>
+            <button
+              className="action-card"
+              onClick={() => {
+                setOpen(false);
+                useGame.getState().setHistoryOpen(true);
+              }}
+            >
+              <span className="action-emoji" aria-hidden>
+                📜
+              </span>
+              <strong>History</strong>
+              <small>Every battle, disaster and year — watch them again</small>
+            </button>
           </div>
         </>
       )}

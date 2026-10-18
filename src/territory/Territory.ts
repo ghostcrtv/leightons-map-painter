@@ -13,6 +13,7 @@
 import { emptyBBox, type BBox } from '../map/geometry';
 import { TerritoryGrid, type CountryStats, type GridDiff } from './TerritoryGrid';
 import { biteShape, cellCount, frontCell, piecesFor, type Piece } from './regions';
+import { addMarks, healMarks, type Marks } from '../sim/strength';
 
 /**
  * Circles are stored flat: [x, y, r, x, y, r, …] in world units.
@@ -23,22 +24,51 @@ export type Action =
   | { kind: 'paint'; owner: string; circles: number[]; within?: string }
   | { kind: 'erase'; circles: number[]; within?: string }
   /** Erode: land inside the circles is lost to the sea. */
-  | { kind: 'sea'; circles: number[] }
+  | { kind: 'sea'; circles: number[]; sim?: boolean }
   /** New land: the sea inside the circles becomes `owner`'s land. */
-  | { kind: 'land'; owner: string; circles: number[] }
+  | { kind: 'land'; owner: string; circles: number[]; sim?: boolean }
   /** The whole of country `id` (its real borders) goes to `owner`, or back to itself if no owner. */
   | { kind: 'fill'; id: string; owner?: string }
   | { kind: 'resetCountry'; id: string }
   | { kind: 'resetWorld' }
   /** A simulated conflict's result: `winner` took land from `loser` (all of it, or a part). */
-  | { kind: 'battle'; winner: string; loser: string; outcome: 'conquest' | 'partial'; pieces: Piece[] }
+  | {
+      kind: 'battle';
+      winner: string;
+      loser: string;
+      outcome: 'conquest' | 'partial';
+      pieces: Piece[];
+      /** Story details (for the history log and war damage; older saves may not have them). */
+      attacker?: string;
+      defender?: string;
+      share?: number;
+      km2?: number;
+      at?: [number, number];
+      allies?: string[];
+      upset?: boolean;
+      marks?: Record<string, Partial<Marks>>;
+    }
+  /** A conflict that ended in a peace deal (no land changes). */
+  | { kind: 'peace'; a: string; b: string; at?: [number, number]; marks?: Record<string, Partial<Marks>> }
+  /** Two countries become allies (on) or break their alliance (off). */
+  | { kind: 'alliance'; a: string; b: string; on: boolean }
   /** A natural disaster: the country is weakened by `severity` (0–1) until it is reset. */
-  | { kind: 'disaster'; id: string; type: string; severity: number };
+  | { kind: 'disaster'; id: string; type: string; severity: number; at?: [number, number] }
+  /** A conquered country (or region) breaks free from `from`. */
+  | { kind: 'rebellion'; id: string; from: string; pieces: Piece[]; km2?: number; at?: [number, number] }
+  /** A year passes (Simulate 1 year): war damage heals a little. `events` = everything that happened that year. */
+  | { kind: 'year'; events?: Action[] };
 
 /** The most a country can be weakened by disasters (60%). */
 export const MAX_WEAKNESS = 0.6;
 
 /** A planned battle result, ready to apply (see planBattle). */
+interface Story {
+  weak: Map<string, { amount: number; hits: { type: string; severity: number }[] }>;
+  marks: Map<string, Marks>;
+  allies: Map<string, Set<string>>;
+}
+
 export interface BattlePlan {
   action: Extract<Action, { kind: 'battle' }>;
   /** Where the attack lands (world units) and how big the area is. */
@@ -301,6 +331,7 @@ export class Territory {
         g.resetAll(diff);
         break;
       case 'battle':
+      case 'rebellion':
         for (const p of a.pieces) {
           const d = this.applyToGrid(p);
           diff.cells.push(...d.cells);
@@ -310,7 +341,18 @@ export class Territory {
         }
         break;
       case 'disaster':
-        break; // no land changes: see weakness()
+      case 'peace':
+      case 'alliance':
+        break; // no land changes (see story())
+      case 'year':
+        for (const ev of a.events ?? []) {
+          const d = this.applyToGrid(ev);
+          diff.cells.push(...d.cells);
+          diff.old.push(...d.old);
+          diff.tiny.push(...d.tiny);
+          diff.tinyOld.push(...d.tinyOld);
+        }
+        break;
     }
     return diff;
   }
@@ -355,7 +397,7 @@ export class Territory {
     if (c && c.version === this.version && c.withStroke === withStroke) return c.layers;
     const layers: Layer[] = [];
     // Battles are drawn as the paint/fill pieces they are made of.
-    const actions = this.applied.flatMap((a) => (a.action.kind === 'battle' ? (a.action.pieces as Action[]) : [a.action]));
+    const actions = this.applied.flatMap((a) => flatten(a.action));
     let start = 0;
     actions.forEach((a, i) => {
       if (a.kind === 'resetWorld') start = i + 1;
@@ -465,24 +507,82 @@ export class Territory {
     return [...this.weaknessMap().keys()];
   }
 
-  private weakCache: { version: number; map: Map<string, { amount: number; hits: { type: string; severity: number }[] }> } | null = null;
+  private storyCache: { version: number; story: Story } | null = null;
+
+  /** Weakness, war damage and alliances, worked out from everything that happened. */
+  private story(): Story {
+    if (this.storyCache?.version === this.version) return this.storyCache.story;
+    const weak = new Map<string, { amount: number; hits: { type: string; severity: number }[] }>();
+    const marks = new Map<string, Marks>();
+    const allies = new Map<string, Set<string>>();
+    const ally = (a: string, b: string, on: boolean) => {
+      for (const [x, y] of [[a, b], [b, a]]) {
+        let s = allies.get(x);
+        if (!s) allies.set(x, (s = new Set()));
+        if (on) s.add(y);
+        else s.delete(y);
+      }
+    };
+    const addAll = (m?: Record<string, Partial<Marks>>) => {
+      for (const [id, d] of Object.entries(m ?? {})) marks.set(id, addMarks(marks.get(id) ?? { military: 0, money: 0 }, d));
+    };
+    const visit = (a: Action) => {
+      switch (a.kind) {
+        case 'resetWorld':
+          weak.clear();
+          marks.clear();
+          allies.clear();
+          break;
+        case 'battle':
+          // Weakness lasts until the country WINS a battle (hope!) or the world is reset.
+          weak.delete(a.winner);
+          addAll(a.marks);
+          break;
+        case 'peace':
+          addAll(a.marks);
+          break;
+        case 'alliance':
+          ally(a.a, a.b, a.on);
+          break;
+        case 'disaster': {
+          const e = weak.get(a.id) ?? { amount: 0, hits: [] };
+          e.hits.push({ type: a.type, severity: a.severity });
+          e.amount = Math.min(MAX_WEAKNESS, e.amount + a.severity);
+          weak.set(a.id, e);
+          break;
+        }
+        case 'year':
+          for (const ev of a.events ?? []) visit(ev);
+          for (const [id, m] of marks) {
+            const h = healMarks(m);
+            if (h.military || h.money) marks.set(id, h);
+            else marks.delete(id);
+          }
+          break;
+      }
+    };
+    for (const { action } of this.applied) visit(action);
+    const story = { weak, marks, allies };
+    this.storyCache = { version: this.version, story };
+    return story;
+  }
 
   private weaknessMap() {
-    if (this.weakCache?.version === this.version) return this.weakCache.map;
-    const map = new Map<string, { amount: number; hits: { type: string; severity: number }[] }>();
-    for (const { action: a } of this.applied) {
-      // Weakness lasts until the whole world is reset, or the country WINS a battle (hope!).
-      if (a.kind === 'resetWorld') map.clear();
-      else if (a.kind === 'battle') map.delete(a.winner);
-      else if (a.kind === 'disaster') {
-        const e = map.get(a.id) ?? { amount: 0, hits: [] };
-        e.hits.push({ type: a.type, severity: a.severity });
-        e.amount = Math.min(MAX_WEAKNESS, e.amount + a.severity);
-        map.set(a.id, e);
-      }
-    }
-    this.weakCache = { version: this.version, map };
-    return map;
+    return this.story().weak;
+  }
+
+  /** War damage (points added to Military and Money) still affecting a country. */
+  marksOf(id: string): Marks {
+    return this.story().marks.get(id) ?? { military: 0, money: 0 };
+  }
+
+  /** Current allies of a country. */
+  alliesOf(id: string): string[] {
+    return [...(this.story().allies.get(id) ?? [])];
+  }
+
+  areAllies(a: string, b: string): boolean {
+    return this.story().allies.get(a)?.has(b) ?? false;
   }
 
   /** Country code in the grid (index + 1), or 0. */
@@ -542,6 +642,14 @@ export class Territory {
   }
 }
 
+/** An action as the simple drawing steps it is made of (battles → pieces, years → their events). */
+export function flatten(a: Action): Action[] {
+  if (a.kind === 'battle') return a.pieces as Action[];
+  if (a.kind === 'year') return (a.events ?? []).flatMap(flatten);
+  if (a.kind === 'rebellion') return a.pieces as Action[];
+  return [a];
+}
+
 /** Upgrade older save formats to the current one (only version 1 exists so far). */
 export function migrate(saved: SavedTerritory): SavedTerritory {
   if (!saved || !Array.isArray(saved.actions)) return { formatVersion: SAVE_FORMAT_VERSION, actions: [] };
@@ -556,6 +664,12 @@ function isValidAction(a: Action, ids: Map<string, number>): boolean {
       Array.isArray(a.pieces) &&
       a.pieces.every((p) => (p.kind === 'paint' || p.kind === 'fill' || p.kind === 'land') && isValidAction(p as Action, ids))
     );
+  }
+  if (a && typeof a === 'object' && a.kind === 'peace') return ids.has(a.a) && ids.has(a.b);
+  if (a && typeof a === 'object' && a.kind === 'alliance') return ids.has(a.a) && ids.has(a.b) && a.a !== a.b && typeof a.on === 'boolean';
+  if (a && typeof a === 'object' && a.kind === 'year') return a.events === undefined || (Array.isArray(a.events) && a.events.every((e) => isValidAction(e, ids)));
+  if (a && typeof a === 'object' && a.kind === 'rebellion') {
+    return ids.has(a.id) && Array.isArray(a.pieces) && a.pieces.every((p) => (p.kind === 'paint' || p.kind === 'fill' || p.kind === 'land') && isValidAction(p as Action, ids));
   }
   if (a && typeof a === 'object' && a.kind === 'disaster') {
     return ids.has(a.id) && typeof a.type === 'string' && typeof a.severity === 'number' && a.severity >= 0 && a.severity <= 1;

@@ -22,7 +22,7 @@ export function SimHud() {
   const byId = useGame((s) => s.countryById);
   const setReport = useGame((s) => s.setSimReport);
   // Hide the result card while a window is open on top of the map.
-  const windowOpen = useGame((s) => !!s.simView || s.worldsOpen || s.actionsOpen || s.rankingsOpen || s.helpOpen || s.settingsOpen || s.tourOpen);
+  const windowOpen = useGame((s) => !!s.simView || s.worldsOpen || s.historyOpen || s.actionsOpen || s.rankingsOpen || s.helpOpen || s.settingsOpen || s.tourOpen);
   useGame((s) => s.territoryVersion);
   const name = (id?: string) => (id ? byId.get(id)?.name ?? id : '');
   const t = getTerritory();
@@ -97,6 +97,12 @@ export function SimHud() {
                     )}
                   </p>
                 </>
+              )}
+              {report.allies.length > 0 && <p className="odds-line">🤝 Allies joined in: {report.allies.map((x) => name(x)).join(', ')}</p>}
+              {report.damage && (
+                <p className="odds-line">
+                  🩹 War damage to {name(report.damage.id)}: Military {report.damage.military}{report.damage.money ? `, Money ${report.damage.money}` : ''} (heals over the years)
+                </p>
               )}
               {report.recovered && (
                 <p className="recovered">💪 {name(report.winner)} won, so it has recovered from its disasters. No more smoke!</p>

@@ -15,6 +15,7 @@ import {
   IconWaves,
 } from './icons';
 import { PowerCard } from './PowerCard';
+import { AlliesCard } from './AlliesCard';
 
 /**
  * Information about the tapped country. Right-hand panel on iPad landscape and
@@ -170,6 +171,7 @@ export function CountryPanel() {
         </section>
 
         <PowerCard id={country.id} editing={editingStats} setEditing={setEditingStats} />
+        <AlliesCard id={country.id} />
 
         <div className="actions">
           <button className="action primary" onClick={startPainting} disabled={!territoryReady || country.disputed}>

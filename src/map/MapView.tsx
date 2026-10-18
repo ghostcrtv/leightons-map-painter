@@ -279,7 +279,7 @@ export function MapView() {
       const step = 120;
       const st = useGame.getState();
       // A window (Help, Settings, tour) is open: keys belong to it.
-      if (st.helpOpen || st.settingsOpen || st.tourOpen || st.actionsOpen || st.rankingsOpen || st.simView || st.worldsOpen) return;
+      if (st.helpOpen || st.settingsOpen || st.tourOpen || st.actionsOpen || st.rankingsOpen || st.simView || st.worldsOpen || st.historyOpen) return;
       // Undo: Cmd/Ctrl+Z · Redo: Shift+Cmd/Ctrl+Z or Ctrl+Y
       if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'y')) {
         const redo = e.key === 'y' || e.shiftKey;
