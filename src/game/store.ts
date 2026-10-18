@@ -51,6 +51,13 @@ interface GameState {
   simReport: SimReport | null;
   /** Auto battles: keep running random conflicts. */
   simAuto: boolean;
+  /** The saved world being played. */
+  world: { id: string; name: string } | null;
+  /** Bumps when the world changes (opened, renamed, names/custom countries edited). */
+  worldVersion: number;
+  worldsOpen: boolean;
+  /** Shown if saving failed (e.g. storage full). */
+  saveProblem: string | null;
   selectedId: string | null;
   panelCollapsed: boolean;
 
@@ -74,6 +81,10 @@ interface GameState {
   setSimBanner(v: SimBanner | null): void;
   setSimReport(v: SimReport | null): void;
   setSimAuto(v: boolean): void;
+  setWorld(w: { id: string; name: string } | null): void;
+  worldChanged(): void;
+  setWorldsOpen(v: boolean): void;
+  setSaveProblem(v: string | null): void;
   setLoading(message: string): void;
   setError(message: string): void;
   setReady(countries: CountryInfo[]): void;
@@ -110,6 +121,10 @@ export const useGame = create<GameState>((set) => ({
   simBanner: null,
   simReport: null,
   simAuto: false,
+  world: null,
+  worldVersion: 0,
+  worldsOpen: false,
+  saveProblem: null,
   selectedId: null,
   panelCollapsed: false,
 
@@ -136,6 +151,10 @@ export const useGame = create<GameState>((set) => ({
   setSimBanner: (simBanner) => set({ simBanner }),
   setSimReport: (simReport) => set({ simReport }),
   setSimAuto: (simAuto) => set({ simAuto }),
+  setWorld: (world) => set({ world }),
+  worldChanged: () => set((s) => ({ worldVersion: s.worldVersion + 1 })),
+  setWorldsOpen: (worldsOpen) => set({ worldsOpen }),
+  setSaveProblem: (saveProblem) => set({ saveProblem }),
   setLoading: (loadingMessage) => set({ loadingMessage }),
   setError: (error) => set({ status: 'error', error }),
   setReady: (countries) =>

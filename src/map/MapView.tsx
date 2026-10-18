@@ -10,6 +10,7 @@ import { MapRenderer } from './MapRenderer';
 import { loadDetail, loadWorld } from './world';
 import { Effects } from '../sim/effects';
 import { attachSimulation, syncSmolder } from '../sim/runner';
+import { initWorlds } from '../worlds/session';
 import { sound } from '../audio/sound';
 
 const BASE = import.meta.env.BASE_URL;
@@ -229,6 +230,7 @@ export function MapView() {
           try {
             const t = createTerritory(world);
             r.setTerritory(t);
+            void initWorlds(t); // opens the last saved world (and saves changes from now on)
             // Smoke rises from weakened countries; keep it in step with the map.
             let smokeTimer = 0;
             const unsub = t.subscribe(() => {
@@ -277,7 +279,7 @@ export function MapView() {
       const step = 120;
       const st = useGame.getState();
       // A window (Help, Settings, tour) is open: keys belong to it.
-      if (st.helpOpen || st.settingsOpen || st.tourOpen || st.actionsOpen || st.rankingsOpen || st.simView) return;
+      if (st.helpOpen || st.settingsOpen || st.tourOpen || st.actionsOpen || st.rankingsOpen || st.simView || st.worldsOpen) return;
       // Undo: Cmd/Ctrl+Z · Redo: Shift+Cmd/Ctrl+Z or Ctrl+Y
       if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'y')) {
         const redo = e.key === 'y' || e.shiftKey;

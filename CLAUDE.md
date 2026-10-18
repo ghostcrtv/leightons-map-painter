@@ -220,6 +220,19 @@ the wheels in the Actions menu stay for manual decisions.
   the map, constant size on screen (CanvasPattern.setTransform).
 - Disaster weakness lasts until the country wins a battle or resetWorld (decision 2026‑10‑17).
 
+## Saved worlds (src/worlds/)
+
+- `model.ts` (pure, tested): `SavedWorld {formatVersion 2, id, name, createdAt, updatedAt,
+  territory: SavedTerritory, names, customs}`; `migrateWorld` (also turns the old v1 autosave
+  into "My World"), backup files `{kind: 'leightons-map-painter-backup', worlds: [...]}`;
+  imports always get new ids.
+- `storage.ts`: the storage ADAPTER (IndexedDB `leightons-map-painter` / store `worlds`,
+  localStorage fallback). Swap for Capacitor storage in an iPad app.
+- `session.ts`: opens the last world (setting `currentWorld`), saves ~0.9 s after changes and
+  when the page is hidden, `onWorldOpened` hooks (custom countries / renames apply BEFORE the
+  action list replays). Everything that happens in a world lives in its action list, so undo,
+  history and saves stay consistent. Ratings edits stay global (the player's sheet).
+
 ## Sound (src/audio/sound.ts)
 
 Sounds are synthesised with the Web Audio API (filtered noise + simple tones): no audio files,

@@ -485,7 +485,7 @@ button:disabled { cursor: default; }
 
 /* ------------------------------------------------------------- small screens */
 @media (max-width: 760px) {
-  .brand-title { display: none; }
+  .brand-title, .brand-world { display: none; }
   .brand { padding: 5px; }
   .search { max-width: none; }
 
@@ -812,3 +812,32 @@ button:disabled { cursor: default; }
 .seg button.on { background: #2fae5a; color: #fff; }
 .seg button.on.erode { background: #2d7ff9; }
 .landbar .paint-hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ------------------------------------------------------------- saved worlds */
+button.brand { border: 1px solid var(--panel-border); color: var(--text); cursor: pointer; text-align: left; font: inherit; }
+button.brand:active { transform: scale(0.98); }
+.brand-text { display: grid; gap: 1px; min-width: 0; }
+.brand-world { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+.world-new, .world-rename { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; flex: 1; }
+.world-new input, .world-rename input {
+  flex: 1 1 200px; min-height: 48px; padding: 0 14px; border-radius: 14px; font-size: 16px;
+  border: 1px solid var(--panel-border); background: rgba(255,255,255,0.08); color: var(--text);
+}
+.world-list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+.world-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 16px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.06);
+}
+.world-row.current { border-color: rgba(255, 211, 77, 0.6); background: rgba(255, 211, 77, 0.08); }
+.world-info { display: grid; gap: 3px; flex: 1 1 200px; min-width: 0; }
+.world-info strong { font-size: 17px; overflow: hidden; text-overflow: ellipsis; }
+.world-info small { color: var(--muted); font-size: 13px; }
+.playing-tag { margin-left: 8px; font-style: normal; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--gold); }
+.world-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.world-actions .btn { min-height: 40px; font-size: 15px; padding: 0 16px; }
+.danger-chip { color: var(--danger); }
+.danger-text { color: var(--danger); font-weight: 700; font-size: 14px; }
+.save-problem {
+  position: absolute; z-index: 40; left: 12px; right: 12px; bottom: calc(80px + var(--safe-bottom));
+  padding: 10px 14px; border-radius: 14px; background: #5a1f1a; color: #ffd6d0; font-size: 14px; box-shadow: var(--shadow);
+}

@@ -431,6 +431,23 @@ export class Territory {
     return !!s && s.originalKm2 > 0 && s.currentKm2 <= s.originalKm2 * 0.001;
   }
 
+  // ------------------------------------------------------------ the story so far
+
+  /** Everything that happened since the world was last reset, oldest first. */
+  activeActions(): Action[] {
+    const all = this.applied.map((a) => a.action);
+    let start = 0;
+    all.forEach((a, i) => {
+      if (a.kind === 'resetWorld') start = i + 1;
+    });
+    return all.slice(start);
+  }
+
+  /** The world's year: how many times "Simulate 1 year" has run since the last reset. */
+  year(): number {
+    return this.activeActions().filter((a) => (a as { kind: string }).kind === 'year').length;
+  }
+
   // ------------------------------------------------------------ simulations
 
   /** How weakened a country is by disasters (0 = not at all, up to MAX_WEAKNESS). Lasts until a world reset or a battle win. */

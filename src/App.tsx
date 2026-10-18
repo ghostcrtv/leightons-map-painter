@@ -12,6 +12,7 @@ import { ActionsDialog } from './components/ActionsDialog';
 import { RankingsDialog } from './components/RankingsDialog';
 import { SimulationDialog } from './components/SimulationDialog';
 import { SimHud } from './components/SimHud';
+import { WorldsDialog } from './components/WorldsDialog';
 import { readSetting } from './utils/settings';
 
 export default function App() {
@@ -24,6 +25,8 @@ export default function App() {
   const actionsOpen = useGame((s) => s.actionsOpen);
   const rankingsOpen = useGame((s) => s.rankingsOpen);
   const simView = useGame((s) => s.simView);
+  const worldsOpen = useGame((s) => s.worldsOpen);
+  const saveProblem = useGame((s) => s.saveProblem);
 
   // First visit: show the welcome tour once the map is ready.
   useEffect(() => {
@@ -66,6 +69,8 @@ export default function App() {
       {actionsOpen && <ActionsDialog />}
       {rankingsOpen && <RankingsDialog />}
       {simView && <SimulationDialog />}
+      {worldsOpen && <WorldsDialog />}
+      {saveProblem && status === 'ready' && <div className="save-problem" role="alert">{saveProblem}</div>}
       {tourOpen && <WelcomeTour />}
     </div>
   );

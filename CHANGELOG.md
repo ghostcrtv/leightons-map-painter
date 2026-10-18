@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0 — 2026-10-18 — Saved worlds (big phase, stage 1)
+
+- New: Worlds menu (tap the logo): many named worlds, each saved automatically on the device
+  (IndexedDB). New, Play, Rename, Copy, Delete (with confirmation), Back up one or all worlds
+  to a file, and Open a backup file (always added as new worlds, never overwriting).
+- The old single autosave becomes "My World" automatically; nothing is lost.
+- The logo shows which world you're playing (and its year).
+
 ## 0.7.0 — 2026-10-17 — Land tool, water pattern, stronger disasters
 
 - New: Land tool (island button): ＋ Land builds new land from the sea for countries by the

@@ -1,5 +1,6 @@
 import { useGame } from '../game/store';
 import { CountrySearch } from './CountrySearch';
+import { getTerritory } from '../territory/session';
 import { IconBolt, IconGear, IconHelp, IconWheel } from './icons';
 
 export function TopBar() {
@@ -7,14 +8,26 @@ export function TopBar() {
   const setSettingsOpen = useGame((s) => s.setSettingsOpen);
   const setActionsOpen = useGame((s) => s.setActionsOpen);
   const setSimView = useGame((s) => s.setSimView);
+  const setWorldsOpen = useGame((s) => s.setWorldsOpen);
+  const world = useGame((s) => s.world);
+  useGame((s) => s.territoryVersion);
+  const year = getTerritory()?.year() ?? 0;
   return (
     <header className="topbar">
-      <div className="brand">
+      <button className="brand" onClick={() => setWorldsOpen(true)} aria-label={`Worlds: playing ${world?.name ?? ''}`} title="Your saved worlds">
         <img src={`${import.meta.env.BASE_URL}icons/logo.svg`} alt="" className="brand-logo" />
-        <h1 className="brand-title">
-          Leighton’s <span>Map Painter</span>
-        </h1>
-      </div>
+        <span className="brand-text">
+          <h1 className="brand-title">
+            Leighton’s <span>Map Painter</span>
+          </h1>
+          {world && (
+            <small className="brand-world">
+              🌍 {world.name}
+              {year > 0 ? ` · Year ${year}` : ''}
+            </small>
+          )}
+        </span>
+      </button>
       <CountrySearch />
       <div className="topbar-actions">
         <button className="icon-btn" onClick={() => setSimView('menu')} aria-label="Simulation: conflicts and disasters" title="Simulation">
