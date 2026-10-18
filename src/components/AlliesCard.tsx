@@ -3,6 +3,7 @@ import { useGame } from '../game/store';
 import { mapController } from '../game/mapController';
 import { playable, setAlliance } from '../sim/runner';
 import { getTerritory } from '../territory/session';
+import { CountryPicker } from './CountryPicker';
 
 /** Country card: this country's allies. Allies help each other in battles and never fight each other. */
 export function AlliesCard({ id }: { id: string }) {
@@ -42,21 +43,17 @@ export function AlliesCard({ id }: { id: string }) {
           })}
         </div>
       )}
-      <select
+      <CountryPicker
         id={`ally-add-${id}`}
         className="ally-add"
         value=""
-        onChange={(e) => {
-          if (e.target.value) setAlliance(id, e.target.value, true);
+        showValue={false}
+        placeholder="＋ Make an ally…"
+        onChange={(v) => {
+          if (v) setAlliance(id, v, true);
         }}
-      >
-        <option value="">＋ Make an ally…</option>
-        {options.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-      </select>
+        items={options.map((c) => ({ id: c.id }))}
+      />
     </section>
   );
 }

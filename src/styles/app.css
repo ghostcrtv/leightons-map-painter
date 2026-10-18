@@ -855,8 +855,6 @@ button.brand:active { transform: scale(0.98); }
 .ally-name { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 6px 0 10px; border: 0; background: transparent; color: var(--text); font-weight: 700; font-size: 14px; }
 .ally-name img { width: 24px; height: 18px; object-fit: cover; border-radius: 3px; }
 .ally-x { width: 36px; min-height: 38px; border: 0; background: transparent; color: var(--muted); font-size: 20px; }
-.ally-add { width: 100%; min-height: 44px; margin-top: 6px; padding: 0 12px; border-radius: 12px; font-size: 16px; border: 1px solid var(--panel-border); background: rgba(255,255,255,0.06); color: var(--text); }
-.ally-add option { color: #111; }
 
 /* ------------------------------------------------------------- history */
 .history { margin-top: 12px; max-height: 56vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
@@ -920,3 +918,41 @@ button.brand:active { transform: scale(0.98); }
 .board-bar { height: 10px; border-radius: 99px; background: rgba(255,255,255,0.08); overflow: hidden; }
 .board-bar i { display: block; height: 100%; border-radius: inherit; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35); }
 .board-value { font-weight: 900; color: var(--gold); font-variant-numeric: tabular-nums; flex: none; }
+
+/* Searchable country picker (used in Simulation menus and the Allies card) */
+.picker { position: relative; min-width: 0; }
+.picker-button {
+  width: 100%; min-height: 48px; padding: 0 12px 0 14px; border-radius: 14px; font-size: 16px; font-weight: 700;
+  border: 1px solid var(--panel-border); background: rgba(255,255,255,0.08); color: var(--text);
+  display: flex; align-items: center; gap: 10px; text-align: left;
+}
+.picker-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-chevron { flex: none; color: var(--muted); transition: transform 0.15s; }
+.picker.open .picker-chevron { transform: rotate(180deg); }
+.picker-panel {
+  margin-top: 6px; padding: 8px; border-radius: 14px; background: var(--panel-solid);
+  border: 1px solid var(--panel-border); box-shadow: var(--shadow);
+}
+.picker-search { position: relative; }
+.picker-search input {
+  width: 100%; height: 44px; padding: 0 40px 0 40px; border-radius: 999px; font: inherit;
+  font-size: 17px; /* 16px+ stops iPad Safari zooming in */
+  border: 1px solid var(--panel-border); background: rgba(255,255,255,0.08); color: var(--text);
+  -webkit-appearance: none; appearance: none; -webkit-user-select: text; user-select: text;
+}
+.picker-search input::placeholder { color: var(--muted); }
+.picker-search input::-webkit-search-cancel-button { display: none; }
+.picker-search-icon { position: absolute; left: 13px; top: 13px; color: var(--muted); pointer-events: none; }
+.picker-clear {
+  position: absolute; right: 4px; top: 4px; width: 36px; height: 36px; border: 0; border-radius: 50%;
+  background: transparent; color: var(--muted); display: grid; place-items: center;
+}
+.picker-list { list-style: none; margin: 6px 0 0; padding: 0; max-height: 260px; overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.picker-list button {
+  width: 100%; display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 6px 10px;
+  border: 0; border-radius: 10px; background: transparent; color: var(--text); text-align: left; font-size: 16px;
+}
+.picker-list button.active, .picker-list button:hover { background: rgba(255, 211, 77, 0.16); }
+.picker-list button.chosen { font-weight: 800; }
+.picker-empty { padding: 12px 10px; color: var(--muted); }
+.ally-add.picker { margin-top: 6px; }

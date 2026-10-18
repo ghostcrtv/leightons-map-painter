@@ -9,6 +9,7 @@ import {
 import { formatArea } from '../utils/format';
 import { getTerritory } from '../territory/session';
 import { Modal } from './Modal';
+import { CountryPicker } from './CountryPicker';
 import { IconChevronDown } from './icons';
 
 const RANDOM = '__random';
@@ -104,21 +105,18 @@ function useNations() {
 function NationSelect(props: { id: string; label: string; value: string; onChange: (v: string) => void; randomLabel: string }) {
   const nations = useNations();
   return (
-    <label className="nation-select">
+    <div className="nation-select">
       <span className="field-label">{props.label}</span>
-      <select id={props.id} value={props.value} onChange={(e) => props.onChange(e.target.value)}>
-        <option value="" disabled>
-          Choose a nation…
-        </option>
-        <option value={RANDOM}>🎲 {props.randomLabel}</option>
-        {nations.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-      </select>
+      <CountryPicker
+        id={props.id}
+        value={props.value}
+        onChange={props.onChange}
+        items={nations.map((c) => ({ id: c.id }))}
+        extras={[{ value: RANDOM, label: `🎲 ${props.randomLabel}` }]}
+        placeholder="Choose a nation…"
+      />
       <NationBadge id={props.value} />
-    </label>
+    </div>
   );
 }
 
@@ -336,16 +334,15 @@ function RebellionSetup() {
   }
   return (
     <div className="sim-setup">
-      <label className="nation-select">
+      <div className="nation-select">
         <span className="field-label">Who rebels?</span>
-        <select id="rebel-pick" value={id} onChange={(e) => setId(e.target.value)}>
-          {list.map((c) => (
-            <option key={c.id} value={c.id}>
-              {byId.get(c.id)?.name} (from {byId.get(c.from)?.name}, {formatArea(c.km2)})
-            </option>
-          ))}
-        </select>
-      </label>
+        <CountryPicker
+          id="rebel-pick"
+          value={id}
+          onChange={setId}
+          items={list.map((c) => ({ id: c.id, label: `${byId.get(c.id)?.name} (from ${byId.get(c.from)?.name}, ${formatArea(c.km2)})` }))}
+        />
+      </div>
       <div className="sim-buttons">
         <button className="btn primary big-go" disabled={!id} onClick={() => runRebellion(id)}>
           ✊ Rebel!
@@ -371,17 +368,10 @@ function CoastSetup() {
   const [id, setId] = useState(() => (selectedId && coastal.some((c) => c.id === selectedId) ? selectedId : ''));
   return (
     <div className="sim-setup">
-      <label className="nation-select">
+      <div className="nation-select">
         <span className="field-label">Country by the sea</span>
-        <select id="coast-pick" value={id} onChange={(e) => setId(e.target.value)}>
-          <option value="">🎲 Random</option>
-          {coastal.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </label>
+        <CountryPicker id="coast-pick" value={id} onChange={setId} items={coastal.map((c) => ({ id: c.id }))} extras={[{ value: '', label: '🎲 Random' }]} />
+      </div>
       <div className="sim-buttons">
         <button className="btn primary big-go" onClick={() => runCoastGrowth(id || undefined)}>
           🏝️ Grow!

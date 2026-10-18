@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1 — 2026-10-18 — Search in country pickers
+
+- New: every country drop-down (Conflict, Natural disaster, World War, Rebellion, Coast growth,
+  "Make an ally") now opens a list with a search box — type a few letters instead of scrolling.
+
 ## 1.0.0 — 2026-10-18 — Offline, hosting and App Store prep (big phase, stage 6)
 
 - New: the game works offline after its first visit (a service worker made at build time;
