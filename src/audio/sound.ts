@@ -30,10 +30,23 @@ class SoundEngine {
       if (this.ctx?.state === 'running') {
         window.removeEventListener('pointerdown', unlock, true);
         window.removeEventListener('keydown', unlock, true);
+        window.removeEventListener('touchend', unlock, true);
+        window.removeEventListener('click', unlock, true);
       }
     };
     window.addEventListener('pointerdown', unlock, true);
     window.addEventListener('keydown', unlock, true);
+    // iPhone Safari only lets sound start from a finished tap (touchend / click), not a press.
+    window.addEventListener('touchend', unlock, true);
+    window.addEventListener('click', unlock, true);
+    // After a phone call or switching apps, iPhone pauses the sound; wake it on the next tap.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && this.ctx && this.ctx.state !== 'running') {
+        window.addEventListener('touchend', unlock, true);
+        window.addEventListener('click', unlock, true);
+        window.addEventListener('pointerdown', unlock, true);
+      }
+    });
   }
 
   setEnabled(v: boolean) {
@@ -51,6 +64,16 @@ class SoundEngine {
   private start() {
     try {
       if (!this.ctx) {
+        // iPhone: play game sounds even when the side switch is on silent (like a video does).
+        // Safari 16.4+ only; older iPhones simply keep following the switch.
+        const session = (navigator as unknown as { audioSession?: { type: string } }).audioSession;
+        if (session) {
+          try {
+            session.type = 'playback';
+          } catch {
+            /* not supported */
+          }
+        }
         const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
         if (!AC) return;
         this.ctx = new AC();
@@ -66,7 +89,14 @@ class SoundEngine {
         const d = this.noise.getChannelData(0);
         for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
       }
-      if (this.ctx.state === 'suspended') void this.ctx.resume();
+      if (this.ctx.state !== 'running') {
+        void this.ctx.resume();
+        // A silent blip inside the tap fully unlocks sound on older iPhones.
+        const blip = this.ctx.createBufferSource();
+        blip.buffer = this.ctx.createBuffer(1, 1, 22050);
+        blip.connect(this.ctx.destination);
+        blip.start(0);
+      }
     } catch {
       this.ctx = null; // no sound available: the game works silently
     }

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.2 — 2026-10-18 — iPhone sound fix
+
+- Fix: sound on iPhone — plays even with the silent switch on (audio session "playback",
+  Safari 16.4+), starts from a finished tap, and wakes up again after switching apps.
+
 ## 1.0.1 — 2026-10-18 — Search in country pickers
 
 - New: every country drop-down (Conflict, Natural disaster, World War, Rebellion, Coast growth,
