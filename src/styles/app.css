@@ -956,3 +956,10 @@ button.brand:active { transform: scale(0.98); }
 .picker-list button.chosen { font-weight: 800; }
 .picker-empty { padding: 12px 10px; color: var(--muted); }
 .ally-add.picker { margin-top: 6px; }
+
+/* "About" fine print at the very bottom of the Help window */
+.about-note { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--panel-border); color: var(--muted); font-size: 13px; line-height: 1.5; }
+.about-note h3 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted); }
+.about-note p { margin: 0 0 6px; }
+.about-note strong { color: var(--text); font-weight: 700; }
+.about-note .copyright { font-size: 12px; opacity: 0.85; }

@@ -79,6 +79,16 @@ export function HelpDialog() {
           Got it!
         </button>
       </div>
+      <footer className="about-note">
+        <h3>About</h3>
+        <p>
+          <strong>Leighton’s Map Painter</strong> was imagined, designed and developed by <strong>Leighton R.</strong> It
+          grew out of his love for world flags, countries and geography, and his idea of a map where every nation flies its
+          real flag, borders can be redrawn and the whole planet is up for grabs. Every feature in this game started as one of
+          his ideas.
+        </p>
+        <p className="copyright">© 2026 Leighton R. All rights reserved.</p>
+      </footer>
     </Modal>
   );
 }

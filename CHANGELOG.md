@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.3 — 2026-10-18 — About and copyright
+
+- New: "About" fine print and copyright (© 2026 Leighton R.) at the very bottom of Help.
+
 ## 1.0.2 — 2026-10-18 — iPhone sound fix
 
 - Fix: sound on iPhone — plays even with the silent switch on (audio session "playback",
