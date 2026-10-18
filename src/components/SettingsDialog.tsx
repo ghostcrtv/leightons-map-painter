@@ -71,7 +71,14 @@ export function SettingsDialog() {
         {!changed && <p className="muted">The world matches the real Earth.</p>}
       </div>
       <p className="muted small-print">
-        Map data: Natural Earth (public domain). Flags: flag-icons (MIT licence). Country sizes are approximate.
+        Map data: Natural Earth (public domain). Flags: flag-icons (MIT licence). Country sizes are approximate.{' '}
+        <a href="./privacy.html" target="_blank" rel="noopener">
+          Privacy
+        </a>{' '}
+        ·{' '}
+        <a href="./third-party-notices.txt" target="_blank" rel="noopener">
+          Licences
+        </a>
       </p>
     </Modal>
   );

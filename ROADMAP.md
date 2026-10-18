@@ -2,9 +2,9 @@
 
 ## Current phase
 
-**Phase 4 (part 1): Simulations — complete (waiting for iPad testing).**
-Phase 5 (land expansion) has started: the Land tool (＋ new land / − erode) is done.
-Next up: more simulation types, an "Expand land" simulation, save slots (Phase 6).
+**Big phase (saved worlds → App Store prep) — complete (waiting for iPad testing).**
+Waiting on the family: free hosting (needs a GitHub account, see docs/hosting.md) and the
+App Store decision (Apple Developer Program costs $99/year, see docs/app-store-guide.md).
 
 ## Completed
 
@@ -58,6 +58,14 @@ Next up: more simulation types, an "Expand land" simulation, save slots (Phase 6
   disaster that fits its geography. Hit countries are weakened (lower battle power) and smoke rises
   from them until reset.
 - Every result is one undoable action and is autosaved.
+
+### Big phase (2026-10-18)
+1. Saved worlds: many named worlds, backups, the old autosave migrated.
+2. Smarter battles: attacker/defender roles, home bonus, alliances, war damage that heals, history log with replays.
+3. Bigger simulations: Simulate 1 year (+ review), World War, rebellions, coast growth, sea level rise.
+4. Leighton's game: create a country (flag designer), rename countries/capitals, leaderboard, 21 badges.
+5. Polish: tanks, jets, warships; day and night; picture of the map.
+6. Offline play, privacy page, hosting workflow, App Store guide, icon and screenshots.
 
 ## Upcoming
 

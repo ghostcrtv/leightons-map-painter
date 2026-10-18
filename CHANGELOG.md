@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0 — 2026-10-18 — Offline, hosting and App Store prep (big phase, stage 6)
+
+- New: the game works offline after its first visit (a service worker made at build time;
+  page and map data check for updates first, everything else loads from the device).
+- New: privacy page (`privacy.html`, linked in Settings) — no data is collected.
+- New: GitHub Pages workflow (`.github/workflows/deploy.yml`) and `docs/hosting.md`.
+- New: App Store preparation (no conversion yet): `docs/app-store-guide.md`, 1024 px icon,
+  13-inch iPad screenshots in `docs/app-store/`.
+- Help: topics for everything added in this phase.
+
 ## 0.12.0 — 2026-10-18 — Looks and polish (big phase, stage 5)
 
 - New: battles now have tanks rolling to the front, jets flying over, and warships firing from

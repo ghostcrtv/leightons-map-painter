@@ -35,8 +35,9 @@ paste code into files.
 | Boundaries | Natural Earth 1:10m admin-0 via `world-atlas` | Public domain, 255 countries/territories |
 | Flags | `flag-icons` SVGs → PNG at build time | MIT licence, 4:3 flags |
 | Tests | Vitest (`tests/`) | Runs with `npm test` |
-| Hosting (planned) | GitHub + Cloudflare Pages | Free, no card, unlimited static bandwidth |
-| Saves (planned) | IndexedDB + JSON export/import | Phase 6 |
+| Hosting | GitHub Pages workflow ready (`.github/workflows/deploy.yml`); needs the family's GitHub account | Free, no card |
+| Saves | IndexedDB saved worlds + backup files (`src/worlds/`) | Done |
+| Offline | Service worker generated at build (`vite.config.ts` → `dist/sw.js`, template `scripts/sw-template.js`) | Done |
 
 **MapLibre GL JS and Turf.js were evaluated and deliberately not used** (decision 2026‑10‑17):
 MapLibre can only fill countries with colours or screen-space repeating patterns; it cannot
@@ -232,6 +233,31 @@ the wheels in the Actions menu stay for manual decisions.
   when the page is hidden, `onWorldOpened` hooks (custom countries / renames apply BEFORE the
   action list replays). Everything that happens in a world lives in its action list, so undo,
   history and saves stay consistent. Ratings edits stay global (the player's sheet).
+
+## Big phase additions (2026-10-18)
+
+- **Battles** (`sim/strength.ts`, tuning in `STRENGTH`): attacker = 0.45·Attack + 0.35·Military
+  + 0.2·Money; defender = 0.45·Defense + 0.35·Military + 0.2·Money + 4 home bonus; allies add
+  10% of their own role strength (max +10); disasters multiply by (1 − weakness). War damage
+  ("marks") on battle/peace actions; each 'year' heals 35%. Story (weakness, marks, allies) is
+  derived in `Territory.story()` from the action list.
+- **New actions**: `peace`, `alliance {on}`, `rebellion {pieces}`, `year {events}` (a simulated
+  year is bundled with `Territory.bundleYear(mark)` — one undo). `flatten()` turns battles,
+  rebellions and years into drawable pieces. History = `sim/history.ts` over `activeActions()`.
+- **Simulations** (`sim/runner.ts`): modes normal / quick (fx.speed 2.2) / silent; `simulateYear`,
+  `startWorldWar(fast)` (boost 1.8), `runRebellion`, `runCoastGrowth`, `runSeaRise`; plans in
+  `territory/events.ts` (tested). Skip/Stop via `skipRun`/`stopRun`.
+- **Custom countries** (`src/custom/`): 24 fixed grid slots `custom-1..24` (virtual: no real land,
+  never tiny-tracked); defined per world (`SavedWorld.customs`); flags drawn from a design
+  (`flag.ts`) and registered with `FlagLibrary.setCustom`; virtual `CountryShape`s in
+  `world.byId` only; the renderer finds their land/label from the grid (`customArea`).
+  Renames: `SavedWorld.names`, applied to the registry objects on world open (originals kept).
+- **Badges** (`game/achievements.ts`): player-wide, saved in settings; `checkWorld` after
+  changes + `unlock()` for events.
+- **Effects**: Tank, Jet, Ship scenes; day/night layer in `Effects.drawNight` (setting `showNight`).
+- **Map picture**: `game/snapshot.ts` + `utils/files.ts sharePicture` (Share sheet on iPad).
+- Data fix: the Maldives area (inside-out polygons) — `prepare-data.mjs` now measures polygon
+  by polygon (`realArea`); a test stops any country exceeding Russia.
 
 ## Sound (src/audio/sound.ts)
 
