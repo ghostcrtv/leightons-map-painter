@@ -22,6 +22,10 @@ import { biteShape, cellCount, frontCell, piecesFor, type Piece } from './region
 export type Action =
   | { kind: 'paint'; owner: string; circles: number[]; within?: string }
   | { kind: 'erase'; circles: number[]; within?: string }
+  /** Erode: land inside the circles is lost to the sea. */
+  | { kind: 'sea'; circles: number[] }
+  /** New land: the sea inside the circles becomes `owner`'s land. */
+  | { kind: 'land'; owner: string; circles: number[] }
   /** The whole of country `id` (its real borders) goes to `owner`, or back to itself if no owner. */
   | { kind: 'fill'; id: string; owner?: string }
   | { kind: 'resetCountry'; id: string }
@@ -46,7 +50,7 @@ export interface BattlePlan {
 /** A drawable piece of the current world (consecutive strokes by one owner are merged). */
 export interface Layer {
   /** 'paint' = owner's flag over the shape · 'erase' = original countries back · 'resetCountry' */
-  kind: 'paint' | 'erase' | 'resetCountry';
+  kind: 'paint' | 'erase' | 'resetCountry' | 'sea' | 'land';
   /** Painting country (paint layers). */
   owner?: string;
   /** Only this country's real land is affected (locked strokes and fills). */
@@ -68,9 +72,11 @@ interface Applied {
   diff: GridDiff;
 }
 
+export type StrokeKind = 'paint' | 'erase' | 'sea' | 'land';
+
 interface Stroke {
   id: number;
-  kind: 'paint' | 'erase';
+  kind: StrokeKind;
   owner?: string;
   within?: string;
   radius: number;
@@ -82,7 +88,7 @@ interface Stroke {
 /** What the map needs to draw a stroke while it is happening. */
 export interface StrokeInfo {
   id: number;
-  kind: 'paint' | 'erase';
+  kind: StrokeKind;
   owner?: string;
   within?: string;
   circles: number[];
@@ -132,9 +138,9 @@ export class Territory {
   // ------------------------------------------------------------ strokes (painting)
 
   /** Start a brush stroke. `radius` is in world units (set from the brush size and zoom). */
-  beginStroke(kind: 'paint' | 'erase', radius: number, owner?: string) {
+  beginStroke(kind: StrokeKind, radius: number, owner?: string) {
     this.cancelStroke();
-    if (kind === 'paint' && (!owner || !this.codeById.has(owner))) return;
+    if ((kind === 'paint' || kind === 'land') && (!owner || !this.codeById.has(owner))) return;
     this.stroke = {
       id: ++this.strokeCounter,
       kind,
@@ -179,11 +185,13 @@ export class Territory {
       const n = Math.max(1, Math.ceil(d / step));
       for (let k = s.circles.length ? 1 : 0; k <= n; k++) pts.push([s.last[0] + (dx * k) / n, s.last[1] + (dy * k) / n]);
     } else pts.push([x, y]);
-    const owner = s.kind === 'paint' ? this.codeById.get(s.owner!)! : 0;
+    const owner = s.kind === 'paint' || s.kind === 'land' ? this.codeById.get(s.owner!)! : 0;
     const within = s.within ? this.codeById.get(s.within) : undefined;
     for (const [px, py] of pts) {
       s.circles.push(round(px), round(py), round(s.radius));
-      this.grid.stampCircle(px, py, s.radius, owner, s.diff, within);
+      if (s.kind === 'sea') this.grid.sinkCircle(px, py, s.radius, s.diff);
+      else if (s.kind === 'land') this.grid.raiseCircle(px, py, s.radius, owner, s.diff);
+      else this.grid.stampCircle(px, py, s.radius, owner, s.diff, within);
     }
     s.last = [x, y];
     this.changed();
@@ -201,7 +209,11 @@ export class Territory {
     const action: Action =
       s.kind === 'paint'
         ? { kind: 'paint', owner: s.owner!, circles: s.circles, within: s.within }
-        : { kind: 'erase', circles: s.circles, within: s.within };
+        : s.kind === 'land'
+          ? { kind: 'land', owner: s.owner!, circles: s.circles }
+          : s.kind === 'sea'
+            ? { kind: 'sea', circles: s.circles }
+            : { kind: 'erase', circles: s.circles, within: s.within };
     this.applied.push({ action, diff: s.diff });
     this.redoStack = [];
     this.changed();
@@ -265,6 +277,14 @@ export class Territory {
         if (a.kind === 'paint' && !owner) break;
         const within = a.within ? this.codeById.get(a.within) : undefined;
         for (let i = 0; i < a.circles.length; i += 3) g.stampCircle(a.circles[i], a.circles[i + 1], a.circles[i + 2], owner, diff, within);
+        break;
+      }
+      case 'sea':
+        for (let i = 0; i < a.circles.length; i += 3) g.sinkCircle(a.circles[i], a.circles[i + 1], a.circles[i + 2], diff);
+        break;
+      case 'land': {
+        const owner = this.codeById.get(a.owner);
+        if (owner) for (let i = 0; i < a.circles.length; i += 3) g.raiseCircle(a.circles[i], a.circles[i + 1], a.circles[i + 2], owner, diff);
         break;
       }
       case 'fill': {
@@ -342,10 +362,11 @@ export class Territory {
     });
     for (let i = start; i < actions.length; i++) {
       const a = actions[i];
-      if (a.kind === 'paint' || a.kind === 'erase') {
-        const owner = a.kind === 'paint' ? a.owner : undefined;
+      if (a.kind === 'paint' || a.kind === 'erase' || a.kind === 'sea' || a.kind === 'land') {
+        const owner = a.kind === 'paint' || a.kind === 'land' ? a.owner : undefined;
+        const within = a.kind === 'paint' || a.kind === 'erase' ? a.within : undefined;
         const prev = layers[layers.length - 1];
-        if (prev && prev.kind === a.kind && !prev.whole && prev.owner === owner && prev.within === a.within) {
+        if (prev && prev.kind === a.kind && !prev.whole && prev.owner === owner && prev.within === within) {
           // Merge with the previous stroke by the same country in the same place (faster drawing).
           prev.circles = prev.circles.concat(a.circles);
           prev.box = circlesBox(a.circles, prev.box);
@@ -354,7 +375,7 @@ export class Territory {
           layers.push({
             kind: a.kind,
             owner,
-            within: a.within,
+            within,
             circles: a.circles.slice(),
             box: circlesBox(a.circles),
             key: `${i}:${a.circles.length}`,
@@ -371,7 +392,7 @@ export class Territory {
           key: `${i}:fill`,
         });
       } else if (a.kind === 'resetCountry') {
-        const absorbs = layers.filter((l) => l.kind === 'paint' && l.owner === a.id);
+          const absorbs = layers.filter((l) => (l.kind === 'paint' || l.kind === 'land') && l.owner === a.id);
         layers.push({ kind: 'resetCountry', resetId: a.id, circles: [], box: emptyBBox(), key: `${i}:reset`, absorbs });
       }
     }
@@ -412,7 +433,7 @@ export class Territory {
 
   // ------------------------------------------------------------ simulations
 
-  /** How weakened a country is by disasters (0 = not at all, up to MAX_WEAKNESS). Cleared by a reset. */
+  /** How weakened a country is by disasters (0 = not at all, up to MAX_WEAKNESS). Lasts until a world reset or a battle win. */
   weakness(id: string): number {
     return this.weaknessMap().get(id)?.amount ?? 0;
   }
@@ -433,8 +454,9 @@ export class Territory {
     if (this.weakCache?.version === this.version) return this.weakCache.map;
     const map = new Map<string, { amount: number; hits: { type: string; severity: number }[] }>();
     for (const { action: a } of this.applied) {
+      // Weakness lasts until the whole world is reset, or the country WINS a battle (hope!).
       if (a.kind === 'resetWorld') map.clear();
-      else if (a.kind === 'resetCountry') map.delete(a.id);
+      else if (a.kind === 'battle') map.delete(a.winner);
       else if (a.kind === 'disaster') {
         const e = map.get(a.id) ?? { amount: 0, hits: [] };
         e.hits.push({ type: a.type, severity: a.severity });
@@ -515,7 +537,7 @@ function isValidAction(a: Action, ids: Map<string, number>): boolean {
       ids.has(a.winner) &&
       ids.has(a.loser) &&
       Array.isArray(a.pieces) &&
-      a.pieces.every((p) => (p.kind === 'paint' || p.kind === 'fill') && isValidAction(p as Action, ids))
+      a.pieces.every((p) => (p.kind === 'paint' || p.kind === 'fill' || p.kind === 'land') && isValidAction(p as Action, ids))
     );
   }
   if (a && typeof a === 'object' && a.kind === 'disaster') {
@@ -528,6 +550,10 @@ function isValidAction(a: Action, ids: Map<string, number>): boolean {
       return ids.has(a.owner) && Array.isArray(a.circles) && a.circles.length % 3 === 0 && okWithin(a.within);
     case 'erase':
       return Array.isArray(a.circles) && a.circles.length % 3 === 0 && okWithin(a.within);
+    case 'sea':
+      return Array.isArray(a.circles) && a.circles.length % 3 === 0;
+    case 'land':
+      return ids.has(a.owner) && Array.isArray(a.circles) && a.circles.length % 3 === 0;
     case 'fill':
       return ids.has(a.id) && (a.owner === undefined || ids.has(a.owner));
     case 'resetCountry':

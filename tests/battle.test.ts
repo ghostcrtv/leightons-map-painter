@@ -110,7 +110,13 @@ describe('disasters', () => {
     expect(t.weakenedIds()).toEqual(['PL']);
     for (let i = 0; i < 5; i++) t.apply({ kind: 'disaster', id: 'PL', type: 'earthquake', severity: 0.2 });
     expect(t.weakness('PL')).toBeCloseTo(0.6);
-    t.resetCountry('PL');
+    t.resetCountry('PL'); // resetting borders doesn't heal it…
+    expect(t.weakness('PL')).toBeCloseTo(0.6);
+    t.apply(t.planBattle('PL', 'DE', 0.1)!.action); // …but winning a battle does
+    expect(t.weakness('PL')).toBe(0);
+    t.undo();
+    expect(t.weakness('PL')).toBeCloseTo(0.6);
+    t.resetWorld();
     expect(t.weakness('PL')).toBe(0);
     t.apply({ kind: 'disaster', id: 'DE', type: 'tornado', severity: 0.1 });
     t.undo();
@@ -135,5 +141,73 @@ describe('disasters', () => {
       ] as never,
     });
     expect(t.canUndo).toBe(false);
+  });
+});
+
+describe('land tool: new land and erosion', () => {
+  const stroke = (t: Territory, kind: 'land' | 'sea' | 'erase', x: number, y: number, r: number, owner?: string) => {
+    t.beginStroke(kind, r, owner);
+    t.extendStroke(x, y);
+    t.endStroke();
+  };
+
+  it('new land is made only on the sea and counts toward the owner', () => {
+    const t = makeWorld();
+    stroke(t, 'land', 53, 20, 2, 'PL'); // just off Poland's coast (Poland ends at x=50)
+    const pl = t.statsFor('PL')!;
+    expect(pl.gainedKm2).toBeGreaterThan(5); // ~ the sea area covered (1 km² per unit here)
+    expect(pl.gainedKm2).toBeLessThan(16); // a circle of radius 2 ≈ 12.6
+    expect(pl.lostKm2).toBe(0);
+    expect(t.ownerAt(53, 20)).toBe('PL');
+    expect(t.statsFor('DE')!.lostKm2).toBe(0);
+    expect(t.layers().at(-1)).toMatchObject({ kind: 'land', owner: 'PL' });
+  });
+
+  it('erosion turns land into sea, and the country shrinks', () => {
+    const t = makeWorld();
+    stroke(t, 'sea', 30, 20, 4); // right on the DE / PL border: both lose land
+    expect(t.ownerAt(30, 20)).toBeNull();
+    expect(t.statsFor('DE')!.lostKm2).toBeGreaterThan(1000);
+    expect(t.statsFor('PL')!.lostKm2).toBeGreaterThan(1000);
+    expect(t.statsFor('DE')!.gainedKm2).toBe(0);
+    t.undo();
+    expect(t.statsFor('DE')!.lostKm2).toBe(0);
+  });
+
+  it('erosion also sinks new land and tiny countries; reset brings them back', () => {
+    const t = makeWorld();
+    stroke(t, 'land', 53, 20, 2, 'PL');
+    stroke(t, 'sea', 53, 20, 3);
+    expect(t.statsFor('PL')!.gainedKm2).toBeCloseTo(0, 5);
+    stroke(t, 'sea', 15, 15, 1); // the Vatican speck
+    expect(t.isConquered('VA')).toBe(true);
+    t.resetWorld();
+    expect(t.isConquered('VA')).toBe(false);
+    expect(t.statsFor('DE')!.lostKm2).toBe(0);
+  });
+
+  it('the eraser removes new land; resetting a country removes its new land and refills eroded land', () => {
+    const t = makeWorld();
+    stroke(t, 'land', 53, 20, 2, 'PL');
+    stroke(t, 'erase', 53, 20, 3);
+    expect(t.ownerAt(53, 20)).toBeNull();
+    stroke(t, 'land', 53, 20, 2, 'PL');
+    stroke(t, 'sea', 45, 20, 3);
+    t.resetCountry('PL');
+    expect(t.ownerAt(53, 20)).toBeNull();
+    expect(t.ownerAt(45, 20)).toBe('PL');
+    expect(t.statsFor('PL')!.lostKm2).toBe(0);
+    expect(t.statsFor('PL')!.gainedKm2).toBeCloseTo(0, 5);
+  });
+
+  it('a conquest also takes the loser’s new land; saves keep it all', () => {
+    const t = makeWorld();
+    stroke(t, 'land', 53, 20, 2, 'PL');
+    t.apply(t.planBattle('DE', 'PL', 1)!.action);
+    expect(t.ownerAt(53, 20)).toBe('DE');
+    expect(t.isConquered('PL')).toBe(true);
+    const t2 = makeWorld();
+    t2.load(JSON.parse(JSON.stringify(t.toJSON())));
+    expect(t2.ownerAt(53, 20)).toBe('DE');
   });
 });

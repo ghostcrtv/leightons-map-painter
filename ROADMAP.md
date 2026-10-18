@@ -3,7 +3,8 @@
 ## Current phase
 
 **Phase 4 (part 1): Simulations — complete (waiting for iPad testing).**
-Next up: more simulation types, then **Phase 5: Land expansion**.
+Phase 5 (land expansion) has started: the Land tool (＋ new land / − erode) is done.
+Next up: more simulation types, an "Expand land" simulation, save slots (Phase 6).
 
 ## Completed
 
@@ -63,7 +64,7 @@ Next up: more simulation types, then **Phase 5: Land expansion**.
 | Phase | What | Notes |
 |---|---|---|
 | 4 (part 2) | More simulations | Ideas: alliances, rebellions/independence, "Simulate 1 year" (many events in a row), battle history log |
-| 5 | Land expansion | Paint into water, coastline expansion, island creation, land removal |
+| 5 (rest) | Land expansion | Done: Land tool (new land, islands, erosion). Ideas: coastline growth simulation, sea-level events |
 | 6 | Saving | IndexedDB save slots, rename/duplicate/delete, export/import files, versioned saves |
 | 7 | Deployment | GitHub + Cloudflare Pages, permanent web address, Home Screen |
 | 8 | Polish | Performance, battle presentation, tutorials, offline play |

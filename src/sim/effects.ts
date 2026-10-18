@@ -317,17 +317,20 @@ export class Effects {
     for (const s of this.smolder) {
       const [sx, sy] = this.host.toScreen(s.x, s.y);
       if (sx < -40 || sy < -60 || sx > this.width + 40 || sy > this.height + 20) continue;
-      s.acc += dt * (1.8 + s.amount * 8);
+      // i: 0 = a little light-grey smoke … 1 = thick black clouds (heavily weakened).
+      const i = Math.min(1, s.amount / 0.45);
+      s.acc += dt * (1.2 + i * 10);
+      const colors = i < 0.3 ? ['#a3a3a3', '#8f8f8f'] : i < 0.65 ? ['#5e5e5e', '#4c4c4c', '#666666'] : ['#262626', '#1c1c1c', '#333333'];
       while (s.acc >= 1) {
         s.acc -= 1;
         const w: W = [s.x, s.y];
-        this.puff(w, this.pick(['#3f3f3f', '#545454', '#2f2f2f']), 5 * k, this.between(22, 36) * k, this.between(2.6, 3.6), {
-          x: this.between(-5, 5) * k, vx: this.between(5, 16), vy: this.between(-20, -12) * k, alpha: 0.65 + s.amount * 0.35, fadeIn: 0.2,
+        this.puff(w, this.pick(colors), (4 + i * 6) * k, this.between(14, 22) * (1 + i * 1.15) * k, this.between(2.4, 3.4) + i * 0.6, {
+          x: this.between(-5, 5) * k * (1 + i), vx: this.between(5, 16), vy: -this.between(10, 16) * (1 + i) * k, alpha: 0.4 + i * 0.4, fadeIn: 0.2,
         });
-        if (this.rand() < 0.45) {
+        if (this.rand() < 0.15 + i * 0.6) {
           this.spawn(w, {
-            kind: 'glow', color: this.pick(['#ff6d00', '#ff9100', '#ffab40']), size: 3.5 * k, size1: 1, life: this.between(0.5, 0.9),
-            x: this.between(-5, 5) * k, vy: this.between(-14, -6), alpha: 0.85, fadeIn: 0.2,
+            kind: 'glow', color: this.pick(['#ff6d00', '#ff9100', '#ffab40']), size: (3 + i * 5) * k, size1: 1, life: this.between(0.5, 0.9),
+            x: this.between(-5, 5) * k * (1 + i), vy: this.between(-14, -6), alpha: 0.85, fadeIn: 0.2,
           });
         }
       }

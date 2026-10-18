@@ -225,8 +225,8 @@ function DisasterSetup() {
         </button>
       </div>
       <p className="muted small-print">
-        A country hit by a disaster is weakened (it fights at lower power) and smoke rises from it until you reset that
-        country or the whole map. Random disasters pick a nation and a disaster that really happens there.
+        A country hit by a disaster is weakened (it fights at lower power): light disasters make a little smoke, extreme ones huge clouds. It stays weak until it wins a battle or you reset the
+        whole map. Random disasters pick a nation and a disaster that really happens there.
       </p>
     </div>
   );

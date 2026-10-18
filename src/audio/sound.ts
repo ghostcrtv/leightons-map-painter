@@ -13,7 +13,7 @@ import { readSetting, writeSetting } from '../utils/settings';
 
 type Name =
   | 'launch' | 'boom' | 'bigBoom' | 'chirp' | 'pop' | 'tick' | 'win' | 'peace' | 'sting' | 'fill'
-  | 'rumble' | 'wind' | 'rain' | 'wave' | 'fire' | 'whistle' | 'blizzard' | 'sand' | 'heat';
+  | 'splash' | 'rumble' | 'wind' | 'rain' | 'wave' | 'fire' | 'whistle' | 'blizzard' | 'sand' | 'heat';
 
 class SoundEngine {
   private ctx: AudioContext | null = null;
@@ -163,6 +163,9 @@ class SoundEngine {
       case 'fill':
         this.noiseHit(ctx, t, { type: 'bandpass', f0: 400, f1: 1600, q: 1.5, peak: 0.2, attack: 0.02, release: 0.3 });
         this.tone(ctx, t, { type: 'sine', f0: 440, f1: 880, peak: 0.1, attack: 0.01, release: 0.25 });
+        break;
+      case 'splash':
+        this.noiseHit(ctx, t, { type: 'lowpass', f0: 2400, f1: 300, q: 1, peak: 0.25, attack: 0.01, release: 0.45 });
         break;
       case 'win': // ta-da: three rising notes
         [523.25, 659.25, 783.99, 1046.5].forEach((f, i) =>

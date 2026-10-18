@@ -5,6 +5,9 @@
 import type { MapRenderer } from '../map/MapRenderer';
 import type { FlagLibrary } from '../map/flags';
 import { getTerritory } from '../territory/session';
+import { isCoastal } from '../territory/regions';
+
+let coastCache = { key: '', value: false };
 
 let renderer: MapRenderer | null = null;
 let flagLibrary: FlagLibrary | null = null;
@@ -31,4 +34,12 @@ export const mapController = {
   stats: (id: string) => getTerritory()?.statsFor(id) ?? null,
   isConquered: (id: string) => getTerritory()?.isConquered(id) ?? false,
   worldChanged: () => getTerritory()?.changedFromEarth ?? false,
+  /** Can this country make new land? Only countries next to the sea (checked on the map as it is now). */
+  isCoastal: (id: string) => {
+    const t = getTerritory();
+    if (!t) return false;
+    const key = `${id}:${t.version}`;
+    if (coastCache.key !== key) coastCache = { key, value: isCoastal(t.grid, t.codeOf(id)) };
+    return coastCache.value;
+  },
 };

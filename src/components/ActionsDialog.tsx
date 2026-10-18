@@ -179,6 +179,14 @@ function WheelView({ wheel, onDone }: { wheel: WheelDef; onDone: () => void }) {
                 </text>
               );
             })}
+          {options.length <= 12 &&
+            options.map((o, i) =>
+              o.arrow === undefined ? null : (
+                <g key={`a${i}`} transform={`rotate(${((i + 0.5) * 360) / options.length}) translate(0 -84) rotate(${o.arrow})`} /* points the true way when its slice stops at the top */>
+                  <ArrowGlyph size={9} />
+                </g>
+              ),
+            )}
           <circle r="14" fill="#121b29" stroke="#ffcd3c" strokeWidth="2.5" />
         </svg>
       </div>
@@ -191,7 +199,19 @@ function WheelView({ wheel, onDone }: { wheel: WheelDef; onDone: () => void }) {
           {result ? (
             <>
               <small>It landed on</small>
-              {result.countryId ? <ResultCountry id={result.countryId} /> : <strong className="result-word" style={{ background: result.color }}>{result.label}</strong>}
+              {result.countryId ? (
+                <ResultCountry id={result.countryId} />
+              ) : (
+                <strong className="result-word" style={{ background: result.color }}>
+                  {result.arrow !== undefined && (
+                    <svg className="result-arrow" viewBox="-12 -12 24 24" aria-hidden style={{ transform: `rotate(${result.arrow}deg)` }}>
+                      <ArrowGlyph size={11} />
+                    </svg>
+                  )}
+                  {result.label}
+                </strong>
+              )}
+              {result.arrow !== undefined && <small>{arrowHint(result.arrow)}</small>}
               {result.countryId && (
                 <button className="btn secondary" onClick={() => showCountry(result.countryId!)}>
                   Show on map
@@ -205,6 +225,26 @@ function WheelView({ wheel, onDone }: { wheel: WheelDef; onDone: () => void }) {
       </div>
     </div>
   );
+}
+
+/** A chunky arrow pointing up (rotate it to point anywhere). */
+function ArrowGlyph({ size }: { size: number }) {
+  const s = size;
+  return (
+    <path
+      d={`M0 ${-s} L${s * 0.85} ${-s * 0.05} L${s * 0.32} ${-s * 0.05} L${s * 0.32} ${s} L${-s * 0.32} ${s} L${-s * 0.32} ${-s * 0.05} L${-s * 0.85} ${-s * 0.05} Z`}
+      fill="#fff"
+      stroke="rgba(0,0,0,0.55)"
+      strokeWidth={s * 0.12}
+      strokeLinejoin="round"
+    />
+  );
+}
+
+/** Plain words for the arrow, for people still learning compass directions. */
+function arrowHint(deg: number): string {
+  const words = ['up the map', 'up and right', 'right', 'down and right', 'down the map', 'down and left', 'left', 'up and left'];
+  return `That's ${words[Math.round(deg / 45) % 8]}`;
 }
 
 function ResultCountry({ id }: { id: string }) {

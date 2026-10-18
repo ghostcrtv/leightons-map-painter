@@ -3,7 +3,7 @@ import { mapController } from '../game/mapController';
 import { shareWord } from '../sim/conflict';
 import { DISASTER_BY_ID } from '../sim/disasters';
 import { lastConflictPair, rerunDisaster, runConflict, runRandomConflict, stopAutoBattles } from '../sim/runner';
-import { severityWord } from '../sim/disasters';
+import { severityWord, smokeWord } from '../sim/disasters';
 import { getTerritory } from '../territory/session';
 import { formatArea } from '../utils/format';
 import { IconClose } from './icons';
@@ -98,6 +98,9 @@ export function SimHud() {
                   </p>
                 </>
               )}
+              {report.recovered && (
+                <p className="recovered">💪 {name(report.winner)} won, so it has recovered from its disasters. No more smoke!</p>
+              )}
               <p className="odds-line">
                 Chances were: {name(report.a)} {Math.round(report.odds.aWins * 100)}% · peace {Math.round(report.odds.peace * 100)}% ·{' '}
                 {name(report.b)} {Math.round(report.odds.bWins * 100)}%
@@ -132,8 +135,9 @@ export function SimHud() {
               </h3>
               <p>
                 <Flag id={report.id} />
-                {name(report.id)} is weakened: battle power {Math.round(report.powerBefore)} → <b>{Math.round(report.powerAfter)}</b>. The
-                smoke stays until you reset it.
+                {name(report.id)} is weakened: battle power {Math.round(report.powerBefore)} → <b>{Math.round(report.powerAfter)}</b> (
+                {smokeWord(t?.weakness(report.id) ?? report.severity)}). It stays weak until it wins a battle or the
+                world is reset.
               </p>
               <div className="report-buttons">
                 <button className="btn primary" onClick={() => rerunDisaster()}>

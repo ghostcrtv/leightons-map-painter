@@ -201,6 +201,7 @@ async function conflict(t: Territory, a: string, b: string) {
   const winnerSide = result.winner === a ? 'a' : 'b';
   const loser = result.loser ?? b;
   const loserKm2Before = t.statsFor(loser)?.currentKm2 ?? 0;
+  const winnerWasWeak = !!plan && t.weakness(result.winner!) > 0;
 
   // Camera: both countries whole when they fit nicely; otherwise the area where they meet.
   const boxA = renderer?.countryBox(a);
@@ -306,6 +307,7 @@ async function conflict(t: Territory, a: string, b: string) {
     aPower: A.power,
     bPower: B.power,
     undoVersion,
+    recovered: winnerWasWeak,
   });
 }
 
@@ -439,13 +441,15 @@ export function syncSmolder() {
   // A fixed seed so the smoke doesn't jump around every time something changes.
   let s = 12345;
   const steady = () => ((s = (s * 16807) % 2147483647) / 2147483647);
-  const samples = sampleCells(t.grid, codes, 2, steady);
+  const samples = sampleCells(t.grid, codes, 6, steady);
   const points: { x: number; y: number; amount: number }[] = [];
   ids.forEach((id, i) => {
     const amount = t.weakness(id);
     const lp = renderer?.labelPoint(id);
     if (lp && t.ownerAt(lp[0], lp[1]) === id) points.push({ x: lp[0], y: lp[1], amount });
-    for (const p of samples.get(codes[i]) ?? []) points.push({ x: p[0], y: p[1], amount: amount * 0.6 });
+    // More smoke columns the more it is weakened.
+    const extra = Math.round(amount * 10);
+    for (const p of (samples.get(codes[i]) ?? []).slice(0, extra)) points.push({ x: p[0], y: p[1], amount: amount * 0.8 });
   });
   fx.setSmolder(points);
 }

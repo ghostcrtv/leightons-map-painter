@@ -33,7 +33,7 @@ import {
 import { bboxContains, bboxHeight, bboxIntersects, bboxWidth, type BBox } from './geometry';
 import type { FlagLibrary } from './flags';
 import type { CountryShape, Lod, World, LineBuckets } from './world';
-import type { Layer, Territory } from '../territory/Territory';
+import type { Layer, StrokeKind, Territory } from '../territory/Territory';
 import { fitFlagRect, unionBBox, emptyBBox, type Rect } from './geometry';
 
 export interface Insets {
@@ -51,6 +51,8 @@ export interface MapOptions {
 
 const OCEAN = '#2a6f97';
 const OCEAN_DEEP = '#1f5a7d';
+/** Wave pattern tile size in pixels (drawn at 2× for sharp screens). */
+const WAVE_TILE = 112;
 const BORDER = 'rgba(16, 22, 30, 0.8)';
 const SELECT = '#ffd34d';
 const CAPITAL = '#ffd34d';
@@ -263,14 +265,23 @@ export class MapRenderer {
     const [wx, wy] = screenToWorld(this.cam, sx, sy);
     const lod = this.lod();
     const base = this.originalAt(wx, wy, lod);
-    if (!base || !this.territory) return base;
-    // Painted land belongs to whoever painted it last.
+    if (!this.territory) return base;
+    // Painted land belongs to whoever painted it last; eroded land is sea; new land is its maker's.
     const layers = this.territory.layers();
     for (let i = layers.length - 1; i >= 0; i--) {
       const l = layers[i];
       const clip = this.layerClip(l, lod);
       if (!clip || !bboxContains(clip.box, wx, wy)) continue;
-      if (!this.hitCtx.isPointInPath(clip.path, wx, wy, 'nonzero')) continue;
+      if (!this.hitCtx.isPointInPath(clip.path, wx, wy, l.whole ? 'evenodd' : 'nonzero')) continue;
+      if (l.kind === 'sea') return null;
+      if (l.kind === 'land') {
+        if (!base) return l.owner!;
+        continue;
+      }
+      if (!base) {
+        if (l.kind === 'erase' && !l.within) return null; // erased new land is sea again
+        continue;
+      }
       if (l.within && l.within !== base) continue; // locked strokes only cover their own country
       return l.kind === 'paint' ? l.owner! : base;
     }
@@ -479,7 +490,7 @@ export class MapRenderer {
       this.drawFull();
       // Remember what is on screen, so the next brush movements can just add to it.
       this.live =
-        stroke && stroke.within
+        stroke && (stroke.within || stroke.kind === 'sea' || stroke.kind === 'land')
           ? {
               strokeId: stroke.id,
               drawn: stroke.circles.length,
@@ -555,8 +566,7 @@ export class MapRenderer {
     ctx.fillRect(0, 0, view.width, view.height);
 
     ctx.setTransform(dpr * s, 0, 0, dpr * s, dpr * cam.x, dpr * cam.y);
-    ctx.fillStyle = OCEAN;
-    ctx.fillRect(0, 0, this.world.width, this.world.height);
+    this.fillWater(ctx, null, s);
 
     const [vx0, vy0] = screenToWorld(cam, 0, 0);
     const [vx1, vy1] = screenToWorld(cam, view.width, view.height);
@@ -601,6 +611,13 @@ export class MapRenderer {
         if (!bboxIntersects(c.box, visible)) continue;
         if (this.isConquered(c.info.id)) continue;
         ctx.stroke(this.pick(c.outline, lod));
+      }
+      // Land lost to the sea (or new land) changes the coast: draw those changes again on top
+      // of the old coastline, so it doesn't show through the water.
+      if (this.territory) {
+        const layers = this.territory.layers();
+        const first = layers.findIndex((l) => l.kind === 'sea' || l.kind === 'land');
+        if (first >= 0) this.drawLayers(ctx, lod, s, visible, width, first);
       }
     }
 
@@ -812,15 +829,51 @@ export class MapRenderer {
    * country's land (so painting never covers the sea) and to the brush strokes, then
    * filled with the painter's flag. A dark line around the strokes becomes the new border.
    */
-  private drawLayers(ctx: CanvasRenderingContext2D, lod: Lod, s: number, visible: BBox, width: number) {
+  private drawLayers(ctx: CanvasRenderingContext2D, lod: Lod, s: number, visible: BBox, width: number, from = 0) {
     const layers = this.territory!.layers();
     const live = new Set<string>();
-    for (const layer of layers) {
+    for (let li = 0; li < layers.length; li++) {
+      const layer = layers[li];
       const clip = this.layerClip(layer, lod);
       if (!clip) continue;
       live.add(clip.cacheKey);
-      if (!bboxIntersects(clip.box, visible)) continue;
+      if (li < from || !bboxIntersects(clip.box, visible)) continue;
       const within = layer.within ? this.world.byId.get(layer.within) : undefined;
+      if (layer.kind === 'sea') {
+        // Eroded: the land here is lost to the sea. A coast line goes round the edge of the land.
+        if (this.options.showBorders) {
+          const landKey = `${clip.cacheKey}|${lod}`;
+          live.add(landKey);
+          ctx.save();
+          ctx.clip(this.landUnder(clip.box, lod, landKey), 'evenodd');
+          ctx.strokeStyle = BORDER;
+          ctx.lineWidth = (width * 2) / s;
+          ctx.stroke(clip.path);
+          ctx.restore();
+        }
+        this.fillWater(ctx, clip.path, s);
+        continue;
+      }
+      if (layer.kind === 'land') {
+        // New land made from the sea: the owner's flag, only where there was sea.
+        const owner = this.world.byId.get(layer.owner!);
+        if (!owner) continue;
+        const rect = this.ownerGroups().layer.get(layer.key) ?? owner.clusters[0].flagRect;
+        const px = Math.max(bboxWidth(clip.box), bboxHeight(clip.box)) * s;
+        const waterKey = `${clip.cacheKey}|${lod}|water`;
+        live.add(waterKey);
+        const water = this.waterUnder(clip.box, lod, waterKey);
+        ctx.save();
+        ctx.clip(water, 'evenodd');
+        if (this.options.showBorders) {
+          ctx.strokeStyle = BORDER;
+          ctx.lineWidth = (width * 2) / s;
+          ctx.stroke(clip.path);
+        }
+        this.fillWithFlag(ctx, clip.path, 'nonzero', owner.info.flag, rect, Math.max(px, MIN_FLAG_PX), s);
+        ctx.restore();
+        continue;
+      }
       if (layer.kind === 'paint') {
         const owner = this.world.byId.get(layer.owner!);
         if (!owner) continue;
@@ -869,6 +922,8 @@ export class MapRenderer {
         ctx.save();
         if (within) ctx.clip(this.pick(within.outline, lod), 'evenodd');
         ctx.clip(clip.path, layer.whole ? 'evenodd' : 'nonzero');
+        // New land in this area goes back under the sea too.
+        if (!within) this.fillWater(ctx, null, s, area);
         for (const c of within ? [within] : this.world.countries) {
           if (!bboxIntersects(c.box, area)) continue;
           this.drawCountry(ctx, c, lod, s, visible);
@@ -890,10 +945,11 @@ export class MapRenderer {
    * While a finger paints, add only the newest brush marks on top of what is already on
    * screen. Labels and new border lines are drawn properly when the finger lifts.
    */
-  private drawStrokeIncrement(circles: number[], kind: 'paint' | 'erase', ownerId?: string, withinId?: string) {
+  private drawStrokeIncrement(circles: number[], kind: StrokeKind, ownerId?: string, withinId?: string) {
     const live = this.live!;
     const within = withinId ? this.world.byId.get(withinId) : undefined;
-    if (!within || live.drawn >= circles.length) {
+    const landTool = kind === 'sea' || kind === 'land';
+    if ((!within && !landTool) || live.drawn >= circles.length) {
       live.drawn = circles.length;
       return;
     }
@@ -913,8 +969,13 @@ export class MapRenderer {
       box.maxX = Math.max(box.maxX, x + r);
       box.maxY = Math.max(box.maxY, y + r);
     }
+    if (kind === 'sea') {
+      this.fillWater(ctx, path, s);
+      live.drawn = circles.length;
+      return;
+    }
     const r0 = live.rect;
-    if (kind === 'paint' && (!r0 || box.minX < r0.x || box.minY < r0.y || box.maxX > r0.x + r0.w || box.maxY > r0.y + r0.h)) {
+    if ((kind === 'paint' || kind === 'land') && (!r0 || box.minX < r0.x || box.minY < r0.y || box.maxX > r0.x + r0.w || box.maxY > r0.y + r0.h)) {
       // The paint has grown past the flag picture: redraw properly (re-fits the flag) instead
       // of filling with a plain colour, which used to look like a black/grey glitch.
       this.drawFull();
@@ -922,7 +983,15 @@ export class MapRenderer {
       return;
     }
     ctx.save();
-    ctx.clip(this.pick(within.outline, live.lod), 'evenodd');
+    if (kind === 'land') {
+      const owner = ownerId ? this.world.byId.get(ownerId) : undefined;
+      ctx.clip(this.waterUnder(box, live.lod, null), 'evenodd');
+      if (owner) this.fillWithFlag(ctx, path, 'nonzero', owner.info.flag, live.rect ?? owner.clusters[0].flagRect, MIN_FLAG_PX * 4, s);
+      ctx.restore();
+      live.drawn = circles.length;
+      return;
+    }
+    ctx.clip(this.pick(within!.outline, live.lod), 'evenodd');
     if (kind === 'paint') {
       const owner = ownerId ? this.world.byId.get(ownerId) : undefined;
       if (owner) {
@@ -931,7 +1000,7 @@ export class MapRenderer {
       }
     } else {
       ctx.clip(path, 'nonzero');
-      this.drawCountry(ctx, within, live.lod, s, box);
+      this.drawCountry(ctx, within!, live.lod, s, box);
     }
     ctx.restore();
     live.drawn = circles.length;
@@ -996,6 +1065,21 @@ export class MapRenderer {
     for (const layer of this.territory?.layers() ?? []) {
       const clip = this.layerClip(layer, lod);
       if (!clip || !bboxIntersects(clip.box, visible)) continue;
+      if (layer.kind === 'sea') {
+        m.save();
+        m.globalCompositeOperation = 'destination-out';
+        m.fill(clip.path, 'nonzero');
+        m.restore();
+        continue;
+      }
+      if (layer.kind === 'land') {
+        m.save();
+        m.clip(this.waterUnder(clip.box, lod, `${clip.cacheKey}|${lod}|water`), 'evenodd');
+        m.globalCompositeOperation = layer.owner === id ? 'source-over' : 'destination-out';
+        m.fill(clip.path, 'nonzero');
+        m.restore();
+        continue;
+      }
       const within = layer.within ? this.world.byId.get(layer.within) : undefined;
       const rule: CanvasFillRule = layer.whole ? 'evenodd' : 'nonzero';
       const land = within ? this.pick(within.outline, lod) : this.landUnder(clip.box, lod, `${clip.cacheKey}|${lod}`);
@@ -1056,6 +1140,69 @@ export class MapRenderer {
     t.stroke();
     this.stripes = ctx.createPattern(tile, 'repeat');
     return this.stripes ?? SELECT;
+  }
+
+  private wavePattern: CanvasPattern | null | undefined;
+
+  /**
+   * Fill with sea: the ocean colour plus a faint wave pattern, so water is easy to tell apart
+   * from blue flags. The pattern is fixed to the map (it moves when panning) and stays the same
+   * size on screen at every zoom. `path` null = everything (or `area`).
+   */
+  private fillWater(ctx: CanvasRenderingContext2D, path: Path2D | null, s: number, area?: BBox) {
+    const box = area ?? { minX: 0, minY: 0, maxX: this.world.width, maxY: this.world.height };
+    const fill = () => (path ? ctx.fill(path, 'nonzero') : ctx.fillRect(box.minX, box.minY, box.maxX - box.minX, box.maxY - box.minY));
+    ctx.fillStyle = OCEAN;
+    fill();
+    const p = this.waves(ctx);
+    if (p) {
+      const TILE_CSS = 56; // size of one pattern tile on screen
+      try {
+        p.setTransform(new DOMMatrix().scale(TILE_CSS / (s * WAVE_TILE)));
+        ctx.fillStyle = p;
+        fill();
+      } catch {
+        /* older browsers: plain ocean */
+      }
+    }
+  }
+
+  private waves(ctx: CanvasRenderingContext2D): CanvasPattern | null {
+    if (this.wavePattern !== undefined) return this.wavePattern;
+    const n = WAVE_TILE;
+    const tile = document.createElement('canvas');
+    tile.width = tile.height = n;
+    const t = tile.getContext('2d')!;
+    t.lineCap = 'round';
+    t.lineWidth = n * 0.022;
+    t.strokeStyle = 'rgba(255,255,255,0.13)';
+    // Little "~" ripples in a staggered grid (they tile seamlessly).
+    const ripple = (x: number, y: number) => {
+      const w = n * 0.2;
+      t.beginPath();
+      t.moveTo(x - w / 2, y);
+      t.quadraticCurveTo(x - w / 4, y - n * 0.045, x, y);
+      t.quadraticCurveTo(x + w / 4, y + n * 0.045, x + w / 2, y);
+      t.stroke();
+    };
+    ripple(n * 0.25, n * 0.3);
+    ripple(n * 0.75, n * 0.8);
+    ripple(n * 0.75 - n, n * 0.8);
+    ripple(n * 0.25 + n, n * 0.3);
+    this.wavePattern = typeof DOMMatrix !== 'undefined' ? ctx.createPattern(tile, 'repeat') : null;
+    return this.wavePattern;
+  }
+
+  /** The sea inside a box (box minus all land in it), for drawing new land only on water. */
+  private waterUnder(box: BBox, lod: Lod, cacheKey: string | null): Path2D {
+    let path = cacheKey ? this.layerPaths.get(cacheKey) : undefined;
+    if (path) return path;
+    const pad = Math.max(1, (box.maxX - box.minX) * 0.05);
+    path = new Path2D();
+    path.rect(box.minX - pad, box.minY - pad, box.maxX - box.minX + pad * 2, box.maxY - box.minY + pad * 2);
+    for (const c of this.world.countries) if (bboxIntersects(c.box, box)) path.addPath(this.pick(c.outline, lod));
+    if (cacheKey) this.layerPaths.set(cacheKey, path);
+    return path;
   }
 
   /**
@@ -1125,13 +1272,13 @@ export class MapRenderer {
     const cluster = new Map<string, Rect[]>();
     const layerRects = new Map<string, Rect>();
     const layers = this.territory?.layers() ?? [];
-    const owners = new Set(layers.filter((l) => l.kind === 'paint').map((l) => l.owner!));
+    const owners = new Set(layers.filter((l) => l.kind === 'paint' || l.kind === 'land').map((l) => l.owner!));
     for (const id of owners) {
       const c = this.world.byId.get(id);
       if (!c) continue;
       const groups = c.clusters.map((cl) => ({ box: { ...cl.box }, members: [] as string[], grown: false }));
       for (const l of layers) {
-        if (l.kind !== 'paint' || l.owner !== id) continue;
+        if ((l.kind !== 'paint' && l.kind !== 'land') || l.owner !== id) continue;
         let lb = layerBox(l, this.world);
         // A stroke still being painted will grow: leave room so new paint stays inside the flag.
         if (l.key.startsWith('stroke')) lb = growStrokeBox(lb, l, this.world);

@@ -9,6 +9,8 @@ export interface WheelOption {
   color: string;
   /** Set for country wheels: lets the result show the flag and fly to the country. */
   countryId?: string;
+  /** Set for direction wheels: arrow angle in degrees (0 = up/North, clockwise). */
+  arrow?: number;
 }
 
 export interface WheelContext {
@@ -73,6 +75,7 @@ export const WHEELS: WheelDef[] = [
       ['North', 'Northeast', 'East', 'Southeast', 'South', 'Southwest', 'West', 'Northwest'].map((label, i) => ({
         label,
         color: [C.blue, C.teal, C.green, C.gold, C.orange, C.red, C.pink, C.purple][i],
+        arrow: i * 45,
       })),
   },
 ];

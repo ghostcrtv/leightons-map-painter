@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0 — 2026-10-17 — Land tool, water pattern, stronger disasters
+
+- New: Land tool (island button): ＋ Land builds new land from the sea for countries by the
+  sea (even new islands); − Erode sinks any land into the sea. Territory %, battles, undo,
+  reset and saves all understand new and lost land. The real border stays as a light-blue line.
+- New: a faint wave pattern on all water, so the sea is easy to tell apart from blue flags.
+- New: the Direction wheel shows arrows (on the wheel and with the result: "That's down the map").
+- Changed: disasters vary from Light to Extreme; the smoke matches (a wisp → black clouds) and
+  so does the weakening. Weakness now lasts until the country WINS a battle or the whole world
+  is reset (resetting a country's borders no longer heals it).
+
 ## 0.6.1 — 2026-10-17 — Sound effects
 
 - New: sound effects made in code (no sound files): missile launches, explosions, doves,

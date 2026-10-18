@@ -1,10 +1,10 @@
 import { mapController } from '../game/mapController';
 import { BRUSH_PX, useGame, type BrushSize, type Tool } from '../game/store';
-import { IconBrush, IconBucket, IconEraser, IconGlobe, IconMinus, IconPlus, IconPointer, IconRedo, IconUndo } from './icons';
+import { IconBrush, IconBucket, IconEraser, IconGlobe, IconIsland, IconMinus, IconPlus, IconPointer, IconRedo, IconUndo } from './icons';
 
 /**
  * Left toolbar: tools, undo/redo and map movement.
- * Expand Land and Create Island join in Phase 5.
+ * Land = new land from the sea (＋) or erosion (−).
  */
 export function MapToolbar() {
   const tool = useGame((s) => s.tool);
@@ -16,7 +16,7 @@ export function MapToolbar() {
   const choose = (t: Tool) => {
     const st = useGame.getState();
     // Picking Paint with a country already selected: paint as that country.
-    if (t === 'paint' && !st.painterId && st.selectedId) st.setPainter(st.selectedId);
+    if ((t === 'paint' || t === 'land') && !st.painterId && st.selectedId) st.setPainter(st.selectedId);
     setTool(t);
     if (t !== 'select') st.setPanelCollapsed(true);
   };
@@ -32,6 +32,9 @@ export function MapToolbar() {
         </ToolButton>
         <ToolButton label="Erase" active={tool === 'erase'} disabled={!ready} onClick={() => choose('erase')}>
           <IconEraser />
+        </ToolButton>
+        <ToolButton label="Land" active={tool === 'land'} disabled={!ready} onClick={() => choose('land')}>
+          <IconIsland />
         </ToolButton>
         <div className="toolbar-sep" />
         <ToolButton label="Undo" disabled={!canUndo} onClick={mapController.undo}>
@@ -51,7 +54,7 @@ export function MapToolbar() {
           <IconGlobe />
         </ToolButton>
       </nav>
-      {(tool === 'paint' || tool === 'erase') && <BrushPicker />}
+      {(tool === 'paint' || tool === 'erase' || tool === 'land') && <BrushPicker />}
     </div>
   );
 }
@@ -67,9 +70,10 @@ const SIZES: { size: BrushSize; label: string }[] = [
 function BrushPicker() {
   const brush = useGame((s) => s.brush);
   const setBrush = useGame((s) => s.setBrush);
+  const tool = useGame((s) => s.tool);
   return (
     <div className="brush-picker" role="radiogroup" aria-label="Brush size">
-      {SIZES.map(({ size, label }) => (
+      {SIZES.filter((x) => tool !== 'land' || x.size !== 'F').map(({ size, label }) => (
         <button
           key={size}
           role="radio"

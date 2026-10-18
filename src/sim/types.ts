@@ -28,6 +28,8 @@ export type SimReport =
       bPower: number;
       /** Territory version right after the change (Undo only while nothing else changed). */
       undoVersion: number | null;
+      /** The winner was weakened by disasters and has now recovered. */
+      recovered: boolean;
     }
   | {
       kind: 'disaster';

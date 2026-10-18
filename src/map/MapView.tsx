@@ -3,7 +3,7 @@ import { loadCountryRegistry } from '../data/countries';
 import { BRUSH_PX, useGame } from '../game/store';
 import { createTerritory, getTerritory } from '../territory/session';
 import { loadStats } from '../stats/session';
-import { attachMap } from '../game/mapController';
+import { attachMap, mapController } from '../game/mapController';
 import { FlagLibrary } from './flags';
 import { GestureController } from './gestures';
 import { MapRenderer } from './MapRenderer';
@@ -67,7 +67,11 @@ export function MapView() {
         /** One finger paints when Paint (with a country chosen) or Erase is on. */
         const paintMode = () => {
           const st = useGame.getState();
-          return !!getTerritory() && (st.tool === 'erase' || (st.tool === 'paint' && !!st.painterId));
+          if (!getTerritory()) return false;
+          if (st.tool === 'erase') return true;
+          if (st.tool === 'paint') return !!st.painterId;
+          if (st.tool === 'land') return st.landMode === 'erode' || (!!st.painterId && mapController.isCoastal(st.painterId));
+          return false;
         };
         const toWorld = (x: number, y: number) => r.toWorld(x, y);
         let fillAt: [number, number] | null = null;
@@ -79,6 +83,12 @@ export function MapView() {
           const t = getTerritory();
           if (!t) return;
           const [wx, wy] = toWorld(x, y);
+          const st0 = useGame.getState();
+          if (st0.tool === 'land') {
+            // New land / erode: not locked to a country (it works on the sea and the coast).
+            t.extendStroke(wx, wy);
+            return;
+          }
           if (!t.strokeLocked) {
             const st = useGame.getState();
             const id = r.countryAt(x, y);
@@ -96,8 +106,8 @@ export function MapView() {
           tap: (x, y) => {
             const st = useGame.getState();
             const id = r.hitTest(x, y);
-            // Paint tool with no country chosen yet: the tapped country becomes the painter.
-            if (st.tool === 'paint' && !st.painterId) {
+            // Paint / new-land tool with no country chosen yet: the tapped country becomes the painter.
+            if ((st.tool === 'paint' || (st.tool === 'land' && st.landMode === 'add')) && !st.painterId) {
               if (id) {
                 st.setPainter(id);
                 st.select(id);
@@ -111,8 +121,8 @@ export function MapView() {
             const st = useGame.getState();
             if (paintMode()) {
               r.setHover(null);
-              if (st.brush === 'F') hideRing();
-              else showRing(x, y, BRUSH_PX[st.brush], st.tool === 'erase');
+              if (st.brush === 'F' && st.tool !== 'land') hideRing();
+              else showRing(x, y, BRUSH_PX[st.brush === 'F' ? 'M' : st.brush], st.tool === 'erase' || (st.tool === 'land' && st.landMode === 'erode'));
             } else {
               hideRing();
               r.setHover(r.hitTest(x, y));
@@ -129,6 +139,13 @@ export function MapView() {
             const t = getTerritory();
             const st = useGame.getState();
             if (!t) return;
+            if (st.tool === 'land') {
+              const kind = st.landMode === 'add' ? 'land' : 'sea';
+              t.beginStroke(kind, BRUSH_PX[st.brush === 'F' ? 'M' : st.brush] / r.scale, st.painterId ?? undefined);
+              sound.play(kind === 'land' ? 'fill' : 'splash');
+              paintTo(x, y);
+              return;
+            }
             if (st.brush === 'F') {
               fillAt = [x, y]; // Fill happens when the finger lifts (so a two-finger move can cancel it)
               return;

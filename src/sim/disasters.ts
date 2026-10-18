@@ -67,47 +67,47 @@ const tropicalStorms = (p: PlaceFacts) => {
 
 export const DISASTERS: DisasterDef[] = [
   {
-    id: 'earthquake', name: 'Earthquake', emoji: '🫨', verb: 'shakes', severity: [0.08, 0.22],
+    id: 'earthquake', name: 'Earthquake', emoji: '🫨', verb: 'shakes', severity: [0.04, 0.3],
     fits: (p) => (SEISMIC.has(p.id) ? 3 : 0.15),
   },
   {
-    id: 'volcano', name: 'Volcano', emoji: '🌋', verb: 'erupts in', severity: [0.08, 0.24],
+    id: 'volcano', name: 'Volcano', emoji: '🌋', verb: 'erupts in', severity: [0.05, 0.32],
     fits: (p) => (VOLCANIC.has(p.id) ? 2.5 : 0),
   },
   {
-    id: 'tsunami', name: 'Tsunami', emoji: '🌊', verb: 'crashes into', severity: [0.1, 0.25],
+    id: 'tsunami', name: 'Tsunami', emoji: '🌊', verb: 'crashes into', severity: [0.06, 0.32],
     fits: (p) => (p.coastal && SEISMIC.has(p.id) ? 2 : 0),
   },
   {
-    id: 'hurricane', name: 'Hurricane', emoji: '🌀', verb: 'slams', severity: [0.08, 0.22],
+    id: 'hurricane', name: 'Hurricane', emoji: '🌀', verb: 'slams', severity: [0.05, 0.3],
     fits: tropicalStorms,
   },
   {
-    id: 'tornado', name: 'Tornado', emoji: '🌪️', verb: 'tears across', severity: [0.05, 0.15],
+    id: 'tornado', name: 'Tornado', emoji: '🌪️', verb: 'tears across', severity: [0.03, 0.2],
     fits: (p) => (TORNADO.has(p.id) ? 2.5 : absLat(p) > 25 && absLat(p) < 55 && p.km2 > 20000 ? 0.3 : 0),
   },
   {
-    id: 'flood', name: 'Flood', emoji: '💧', verb: 'floods', severity: [0.06, 0.18],
+    id: 'flood', name: 'Flood', emoji: '💧', verb: 'floods', severity: [0.03, 0.24],
     fits: (p) => (FLOODY.has(p.id) ? 3 : DESERT.has(p.id) ? 0.3 : absLat(p) > 66 ? 0.2 : 1.2),
   },
   {
-    id: 'wildfire', name: 'Wildfire', emoji: '🔥', verb: 'burns across', severity: [0.05, 0.16],
+    id: 'wildfire', name: 'Wildfire', emoji: '🔥', verb: 'burns across', severity: [0.03, 0.22],
     fits: (p) => (WILDFIRE.has(p.id) ? 3 : absLat(p) > 15 && absLat(p) < 62 && p.km2 > 10000 && !DESERT.has(p.id) ? 0.6 : 0),
   },
   {
-    id: 'drought', name: 'Drought', emoji: '☀️', verb: 'dries out', severity: [0.06, 0.18],
+    id: 'drought', name: 'Drought', emoji: '☀️', verb: 'dries out', severity: [0.04, 0.22],
     fits: (p) => (DESERT.has(p.id) ? 2 : absLat(p) < 38 && p.km2 > 50000 ? 1.2 : absLat(p) < 50 && p.km2 > 50000 ? 0.4 : 0),
   },
   {
-    id: 'blizzard', name: 'Blizzard', emoji: '❄️', verb: 'freezes', severity: [0.05, 0.15],
+    id: 'blizzard', name: 'Blizzard', emoji: '❄️', verb: 'freezes', severity: [0.03, 0.18],
     fits: (p) => (absLat(p) > 55 ? 3 : absLat(p) > 40 ? 1.5 : ['NP', 'BT', 'AF', 'TJ', 'KG', 'CH', 'AT', 'LS'].includes(p.id) ? 1 : 0),
   },
   {
-    id: 'sandstorm', name: 'Sandstorm', emoji: '🏜️', verb: 'buries', severity: [0.05, 0.14],
+    id: 'sandstorm', name: 'Sandstorm', emoji: '🏜️', verb: 'buries', severity: [0.03, 0.18],
     fits: (p) => (DESERT.has(p.id) ? 3 : 0),
   },
   {
-    id: 'meteor', name: 'Meteor strike', emoji: '☄️', verb: 'smashes into', severity: [0.15, 0.3],
+    id: 'meteor', name: 'Meteor strike', emoji: '☄️', verb: 'smashes into', severity: [0.1, 0.4],
     fits: () => 0.12, // rare, can happen anywhere
   },
 ];
@@ -128,11 +128,17 @@ export function pickDisaster(p: PlaceFacts, rand: Rand): DisasterDef {
   return pickWeighted(list.map((x) => ({ item: x.def, weight: x.weight })), rand);
 }
 
+/** How bad this one is: usually light or moderate, sometimes severe, rarely extreme. */
 export function rollSeverity(def: DisasterDef, rand: Rand): number {
   const [a, b] = def.severity;
-  return Math.round((a + (b - a) * rand()) * 100) / 100;
+  return Math.round((a + (b - a) * Math.pow(rand(), 1.6)) * 100) / 100;
 }
 
-export function severityWord(s: number): 'Minor' | 'Major' | 'Massive' {
-  return s < 0.11 ? 'Minor' : s < 0.19 ? 'Major' : 'Massive';
+export function severityWord(s: number): 'Light' | 'Moderate' | 'Severe' | 'Extreme' {
+  return s < 0.09 ? 'Light' : s < 0.16 ? 'Moderate' : s < 0.25 ? 'Severe' : 'Extreme';
+}
+
+/** How the smoke looks for a total weakness (0–0.6). */
+export function smokeWord(w: number): string {
+  return w < 0.1 ? 'a little smoke' : w < 0.2 ? 'smoking' : w < 0.35 ? 'heavy smoke' : 'huge clouds of smoke';
 }

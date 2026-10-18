@@ -17,6 +17,8 @@
 import type { PlanarPolygon } from '../map/geometry';
 
 export const WATER = 0;
+/** A tiny country (tracked by one point) that has sunk under the sea (eroded). */
+export const SUNK = 0xffff;
 
 export interface GridCountry {
   /** Flat polygons in world units (original borders). */
@@ -120,7 +122,8 @@ export class TerritoryGrid {
     if (old === v) return;
     const orig = this.original[i];
     const w = this.rowKm2[(i / this.cols) | 0];
-    const share = (w / this.gridKm2[orig]) * this.realKm2[orig];
+    // Real land counts as a share of its country's real size; brand-new land (from the sea) as its own area.
+    const share = orig === WATER ? w : (w / this.gridKm2[orig]) * this.realKm2[orig];
     if (old !== orig) {
       this.lostW[orig] -= w;
       if (old !== WATER) this.gained[old] -= share;
@@ -208,7 +211,12 @@ export class TerritoryGrid {
       for (let c = c0; c <= c1; c++) {
         const i = base + c;
         const orig = this.original[i];
-        if (orig === WATER || (within && orig !== within)) continue;
+        if (within && orig !== within) continue;
+        if (orig === WATER) {
+          // Painting never covers the sea; erasing (not locked to a country) removes new land.
+          if (!owner && !within && this.current[i] !== WATER) this.set(i, WATER, diff);
+          continue;
+        }
         this.set(i, owner || orig, diff);
       }
     }
@@ -220,6 +228,43 @@ export class TerritoryGrid {
       const dy = p[1] - cy;
       if (dx * dx + dy * dy <= rr) this.setTiny(code, owner || code, diff);
     }
+  }
+
+  /** Calls fn(cellIndex) for every cell whose centre is inside the circle. */
+  private eachInCircle(cx: number, cy: number, radius: number, fn: (i: number) => void) {
+    const cell = this.cell;
+    const r0 = Math.max(0, Math.floor((cy - radius) / cell));
+    const r1 = Math.min(this.rows - 1, Math.floor((cy + radius) / cell));
+    const rr = radius * radius;
+    for (let r = r0; r <= r1; r++) {
+      const dy = (r + 0.5) * cell - cy;
+      const half = rr - dy * dy;
+      if (half < 0) continue;
+      const span = Math.sqrt(half);
+      const c0 = Math.max(0, Math.ceil((cx - span) / cell - 0.5));
+      const c1 = Math.min(this.cols - 1, Math.floor((cx + span) / cell - 0.5));
+      for (let c = c0; c <= c1; c++) fn(r * this.cols + c);
+    }
+  }
+
+  /** Erode: all land inside the circle (real or new) is lost to the sea. */
+  sinkCircle(cx: number, cy: number, radius: number, diff: GridDiff) {
+    this.eachInCircle(cx, cy, radius, (i) => {
+      if (this.current[i] !== WATER) this.set(i, WATER, diff);
+    });
+    const rr = radius * radius;
+    for (let t = 1; t <= this.count; t++) {
+      if (!this.tinyOwner[t]) continue;
+      const p = this.tinyPoint[t];
+      if ((p[0] - cx) ** 2 + (p[1] - cy) ** 2 <= rr) this.setTiny(t, SUNK, diff);
+    }
+  }
+
+  /** New land: the sea inside the circle (where there was no land on the real Earth) becomes `owner`'s. */
+  raiseCircle(cx: number, cy: number, radius: number, owner: number, diff: GridDiff) {
+    this.eachInCircle(cx, cy, radius, (i) => {
+      if (this.original[i] === WATER) this.set(i, owner, diff);
+    });
   }
 
   /** All of a country's real land goes to `owner` (owner = the country itself puts it back). */
@@ -280,7 +325,7 @@ export class TerritoryGrid {
     }
     for (let t = 1; t <= this.count; t++) {
       const owner = this.tinyOwner[t];
-      if (owner && owner !== t) gained[owner] += this.realKm2[t];
+      if (owner && owner !== t && owner !== SUNK) gained[owner] += this.realKm2[t];
     }
     for (let code = 0; code <= this.count; code++) {
       const s = out[code];

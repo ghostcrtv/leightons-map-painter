@@ -108,7 +108,7 @@ function WeakNote({ id, power }: { id: string; power: number }) {
   return (
     <p className="weak-note">
       <span aria-hidden>💨</span> Weakened by {hits.length === 1 ? 'a disaster' : `${hits.length} disasters`} {names}: fights at{' '}
-      <b>{Math.round(power * (1 - weak))}</b> (−{Math.round(weak * 100)}%) until reset.
+      <b>{Math.round(power * (1 - weak))}</b> (−{Math.round(weak * 100)}%) until it wins a battle or the world is reset.
     </p>
   );
 }

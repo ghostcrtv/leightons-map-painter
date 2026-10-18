@@ -6,11 +6,12 @@
  * Map changes are always expressed as ordinary paint/fill actions, so the map drawing and
  * the measuring grid can never disagree, and undo/redo/saves keep working.
  */
-import { WATER, type TerritoryGrid } from './TerritoryGrid';
+import { SUNK, WATER, type TerritoryGrid } from './TerritoryGrid';
 
 export type Piece =
   | { kind: 'paint'; owner: string; circles: number[]; within?: string }
-  | { kind: 'fill'; id: string; owner?: string };
+  | { kind: 'fill'; id: string; owner?: string }
+  | { kind: 'land'; owner: string; circles: number[] };
 
 const DIRS8 = [-1, 1, 0, 0, -1, -1, 1, 1];
 const DIRS8Y = [0, 0, -1, 1, -1, 1, -1, 1];
@@ -72,7 +73,7 @@ export function touching(g: TerritoryGrid, code: number): Set<number> {
   // Tiny countries: next to whoever owns the land around their point.
   for (let t = 1; t <= g.count; t++) {
     const owner = g.tinyOwner[t];
-    if (!owner) continue;
+    if (!owner || owner === SUNK) continue;
     const [x, y] = g.tinyPoint[t];
     const near = new Set<number>();
     ownersNearPoint(g, x, y, 2, near);
@@ -176,7 +177,8 @@ export function frontCell(g: TerritoryGrid, from: number, target: number, rand?:
 /** Real km² of one cell (scaled to the real size of the country it belongs to on the real Earth). */
 export function cellKm2(g: TerritoryGrid, i: number): number {
   const orig = g.original[i];
-  if (!orig || !g.gridKm2[orig]) return 0;
+  if (!orig) return g.rowKm2[(i / g.cols) | 0]; // new land from the sea: its own size
+  if (!g.gridKm2[orig]) return 0;
   return (g.rowKm2[(i / g.cols) | 0] / g.gridKm2[orig]) * g.realKm2[orig];
 }
 
@@ -409,6 +411,11 @@ export function piecesFor(
     handledTiny.add(x);
   };
   for (const [x, list] of byOrig) {
+    if (x === WATER) {
+      // Land that was made from the sea: hand it over as new land.
+      pieces.push({ kind: 'land', owner: W, circles: blockCircles(g, list) });
+      continue;
+    }
     if (list.length === origCount.get(x) && (!isTinyTracked(g, x) || g.tinyOwner[x] === loser || g.tinyOwner[x] === x)) {
       fill(x);
       continue;

@@ -10,7 +10,9 @@ import type { CountryInfo } from '../data/countries';
 import { readSetting, writeSetting } from '../utils/settings';
 
 /** Phase 5 adds 'expand' and 'island'. */
-export type Tool = 'select' | 'paint' | 'erase';
+export type Tool = 'select' | 'paint' | 'erase' | 'land';
+/** Land tool: add new land from the sea, or erode land into sea. */
+export type LandMode = 'add' | 'erode';
 /** S/M/L are round brushes; F (Fill) takes a whole country with one tap. */
 export type BrushSize = 'S' | 'M' | 'L' | 'F';
 /** Brush radius in screen pixels: the brush looks the same size at any zoom. */
@@ -27,6 +29,7 @@ interface GameState {
   mode: GameMode;
   tool: Tool;
   brush: BrushSize;
+  landMode: LandMode;
   /** The country that paints when using the Paint tool. */
   painterId: string | null;
   /** True once the territory engine is ready (shortly after the map appears). */
@@ -60,6 +63,7 @@ interface GameState {
 
   setTool(t: Tool): void;
   setBrush(b: BrushSize): void;
+  setLandMode(m: LandMode): void;
   setPainter(id: string | null): void;
   territoryChanged(info: { canUndo: boolean; canRedo: boolean }): void;
   setTerritoryReady(): void;
@@ -93,6 +97,7 @@ export const useGame = create<GameState>((set) => ({
   mode: 'sandbox',
   tool: 'select',
   brush: readSetting<BrushSize>('brush', 'M'),
+  landMode: 'add',
   painterId: null,
   territoryReady: false,
   territoryVersion: 0,
@@ -115,7 +120,8 @@ export const useGame = create<GameState>((set) => ({
   showBorders: readSetting('showBorders', true),
   showCapitals: readSetting('showCapitals', true),
 
-  setTool: (tool) => set({ tool }),
+  setTool: (tool) => set((s) => ({ tool, brush: tool === 'land' && s.brush === 'F' ? 'M' : s.brush })),
+  setLandMode: (landMode) => set({ landMode }),
   setBrush: (brush) => {
     writeSetting('brush', brush);
     set({ brush });

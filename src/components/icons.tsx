@@ -57,3 +57,4 @@ export const IconBucket = (p: P) => (
 );
 export const IconWheel = (p: P) => (<svg {...base(p)}><circle cx="12" cy="12" r="9" /><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4" /><circle cx="12" cy="12" r="2.2" fill="currentColor" /></svg>);
 export const IconBolt = (p: P) => (<svg {...base(p)}><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12L13 2Z" /></svg>);
+export const IconIsland = (p: P) => (<svg {...base(p)}><path d="M4 15c2.5-4 5-6 8-6s5.5 2 8 6" /><path d="M2 19c1.5 1 3 1 4.5 0s3-1 4.5 0 3 1 4.5 0 3-1 4.5 0" /><path d="M12 9V4m0 0c-1.5-1-3.5-1-5 .5M12 4c1.5-1 3.5-1 5 .5" /></svg>);

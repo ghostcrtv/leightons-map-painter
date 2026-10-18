@@ -206,6 +206,20 @@ the wheels in the Actions menu stay for manual decisions.
   Stop auto battles). CSS gotcha: `.btn:active` uses `transform`, so never centre a `.btn` with
   `transform: translateX(-50%)` (it jumps while pressed and the tap misses).
 
+## Land tool (Phase 5 start)
+
+- Actions `land {owner, circles}` (sea cells — original WATER — inside the circles become the
+  owner's) and `sea {circles}` (all land inside becomes water; tiny countries → `SUNK`).
+  Neither is locked to a country. New land counts its own km² (`write()` uses the cell area when
+  original is water). The eraser (unlocked) also removes new land; resetCountry removes the
+  country's new land and refills its eroded land; battles hand over new land as `land` pieces.
+- Drawing: `land` layers = owner's flag clipped to the sea (`waterUnder` = box rect + land,
+  even-odd) with a coast line; `sea` layers = `fillWater` + coast line clipped to land. Because
+  old coastlines are drawn after layers, layers from the first sea/land layer on are drawn a
+  second time after the coastlines. `fillWater` = ocean colour + a faint wave pattern fixed to
+  the map, constant size on screen (CanvasPattern.setTransform).
+- Disaster weakness lasts until the country wins a battle or resetWorld (decision 2026‑10‑17).
+
 ## Sound (src/audio/sound.ts)
 
 Sounds are synthesised with the Web Audio API (filtered noise + simple tones): no audio files,
