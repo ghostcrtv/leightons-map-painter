@@ -10,6 +10,7 @@ import { MapRenderer } from './MapRenderer';
 import { loadDetail, loadWorld } from './world';
 import { Effects } from '../sim/effects';
 import { attachSimulation, syncSmolder } from '../sim/runner';
+import { sound } from '../audio/sound';
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -57,7 +58,8 @@ export function MapView() {
         renderer = new MapRenderer(canvas, world, flags);
         const r = renderer;
         attachMap(r, flags);
-        if (window.location.search.includes('debug')) (window as unknown as { __map: MapRenderer }).__map = r;
+        if (window.location.search.includes('debug')) (window as unknown as { __map: MapRenderer; __sound: typeof sound }).__map = r;
+        if (window.location.search.includes('debug')) (window as unknown as { __sound: typeof sound }).__sound = sound;
         const s = useGame.getState();
         r.setOptions({ showLabels: s.showLabels, showBorders: s.showBorders, showCapitals: s.showCapitals });
         r.setSelected(s.selectedId);
@@ -144,6 +146,7 @@ export function MapView() {
             if (fillAt && t) {
               const id = r.countryAt(fillAt[0], fillAt[1]);
               if (id) {
+                sound.play('fill');
                 if (st.tool === 'erase') t.fill(id);
                 else if (st.painterId && id !== st.painterId) t.fill(id, st.painterId);
               }

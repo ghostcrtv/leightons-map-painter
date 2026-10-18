@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { sound } from '../audio/sound';
 import { useGame } from '../game/store';
 import { mapController } from '../game/mapController';
 import { WHEELS, landingAngle, optionAt, randomIndex, type WheelDef, type WheelOption } from '../actions/wheels';
@@ -77,6 +78,44 @@ function WheelView({ wheel, onDone }: { wheel: WheelDef; onDone: () => void }) {
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<WheelOption | null>(null);
   const pending = useRef<number | null>(null);
+  const wheelRef = useRef<SVGSVGElement>(null);
+  const tickLoop = useRef(0);
+  useEffect(() => () => cancelAnimationFrame(tickLoop.current), []);
+
+  /**
+   * Click each time a slice edge passes the pointer, like a real prize wheel. Reads the
+   * wheel's actual on-screen angle every frame, so the clicks slow down with the wheel.
+   */
+  const startTicks = () => {
+    cancelAnimationFrame(tickLoop.current);
+    const el = wheelRef.current;
+    if (!el) return;
+    const slice = 360 / Math.max(1, options.length);
+    let lastAngle: number | null = null;
+    let total = 0;
+    let lastSlice = 0;
+    const frame = () => {
+      const m = getComputedStyle(el).transform;
+      const match = /matrix\(([^,]+),\s*([^,]+)/.exec(m);
+      if (match) {
+        const a = (Math.atan2(parseFloat(match[2]), parseFloat(match[1])) * 180) / Math.PI;
+        if (lastAngle !== null) {
+          let d = a - lastAngle;
+          if (d < -180) d += 360;
+          if (d > 180) d -= 360;
+          total += d;
+          const sl = Math.floor(total / slice);
+          if (sl !== lastSlice) {
+            lastSlice = sl;
+            sound.play('tick');
+          }
+        }
+        lastAngle = a;
+      }
+      tickLoop.current = requestAnimationFrame(frame);
+    };
+    tickLoop.current = requestAnimationFrame(frame);
+  };
   const reduceMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
   const spin = () => {
@@ -87,10 +126,13 @@ function WheelView({ wheel, onDone }: { wheel: WheelDef; onDone: () => void }) {
     setResult(null);
     setSpinning(true);
     setAngle((a) => landingAngle(a, index, options.length, reduceMotion ? 1 : 6, wobble));
+    startTicks();
   };
 
   const finished = () => {
     if (!spinning) return;
+    cancelAnimationFrame(tickLoop.current);
+    sound.play('win');
     setSpinning(false);
     const index = pending.current ?? optionAt(angle, options.length);
     setResult(options[index]);
@@ -107,6 +149,7 @@ function WheelView({ wheel, onDone }: { wheel: WheelDef; onDone: () => void }) {
       <div className="wheel-wrap">
         <div className="wheel-pointer" aria-hidden />
         <svg
+          ref={wheelRef}
           className="wheel"
           viewBox="-100 -100 200 200"
           style={{

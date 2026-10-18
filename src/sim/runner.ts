@@ -16,6 +16,7 @@ import { DISASTER_BY_ID, likelyDisasters, pickDisaster, rollSeverity, type Disas
 import type { Effects, W } from './effects';
 import { cryptoRand, pick, pickWeighted, type Rand } from './random';
 import { playBattle, playDisaster } from './shows';
+import { sound } from '../audio/sound';
 import type { SimReport } from './types';
 
 let fx: Effects | null = null;
@@ -263,7 +264,8 @@ async function conflict(t: Territory, a: string, b: string) {
     if (plan) {
       t.apply(plan.action);
       undoVersion = t.version;
-    }
+      sound.play('win');
+    } else sound.play('peace');
   };
   const pa = Math.pow(Math.max(A.power, 1), 2);
   const pb = Math.pow(Math.max(B.power, 1), 2);
@@ -411,6 +413,7 @@ async function disaster(t: Territory, id: string, type?: string) {
   const apply = () => {
     t.apply({ kind: 'disaster', id, type: def.id, severity });
     undoVersion = t.version;
+    sound.play('sting');
   };
   if (fx) {
     await new Promise<void>((resolve) =>

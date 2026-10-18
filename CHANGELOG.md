@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.1 — 2026-10-17 — Sound effects
+
+- New: sound effects made in code (no sound files): missile launches, explosions, doves,
+  fireworks, a fanfare for wins, a chime for peace, a sound for each disaster, the paint
+  bucket, and clicks as the spin wheels turn.
+- New: Settings → Sound effects on/off and Volume (remembered).
+
 ## 0.6.0 — 2026-10-17 — Simulations: conflicts and natural disasters
 
 - New: Simulation menu (lightning button, left of Actions).

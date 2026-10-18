@@ -206,6 +206,14 @@ the wheels in the Actions menu stay for manual decisions.
   Stop auto battles). CSS gotcha: `.btn:active` uses `transform`, so never centre a `.btn` with
   `transform: translateX(-50%)` (it jumps while pressed and the tap misses).
 
+## Sound (src/audio/sound.ts)
+
+Sounds are synthesised with the Web Audio API (filtered noise + simple tones): no audio files,
+no licences, offline. `sound.play(name)`; repeated sounds are rate-limited; a compressor
+prevents distortion. Starts on the first tap (iPad Safari rule). Settings keys `soundOn`,
+`soundVolume`. Wheel clicks read the wheel's on-screen rotation each frame (ActionsDialog).
+iPad mute may silence Web Audio — check on the device.
+
 ## Battle calculation system (original design notes — Phase 4)
 
 - Ratings 1–100: attack, defense, resources (money), military.

@@ -30,6 +30,7 @@ const TOPICS: Topic[] = [
   { title: 'Power rankings', ready: true, text: 'In Actions, open Power rankings to see the strongest countries, or import your own ratings from a spreadsheet (CSV).' },
   { title: 'Simulation: conflicts', ready: true, text: 'Tap the lightning button at the top, then Conflict. Pick two nations (or 🎲 Random) and press BATTLE! Watch the missiles fly. Stronger countries usually win, but underdogs sometimes surprise everyone. The winner may take some land, ALL the land, or they make peace.' },
   { title: 'Simulation: natural disasters', ready: true, text: 'In Simulation, choose Natural disaster. Pick a nation and a disaster, or press Random disaster for one that really happens there. Hit countries are weakened: smoke rises from them and they fight at lower power until you reset them.' },
+  { title: 'Sounds', ready: true, text: 'Battles, disasters, the paint bucket and the spin wheels make sounds. Turn them off or change the volume in Settings (the gear). If you hear nothing, check that the iPad isn’t muted.' },
   { title: 'Auto battles', ready: true, text: 'Press Auto battles to watch random neighbours fight again and again. Press Stop when you’ve seen enough. Undo takes back the last result.' },
   { title: 'Expand land and create islands', ready: false, text: 'Paint new land into the ocean from a coastline, or make a brand-new island for any country.' },
   { title: 'Your world is remembered', ready: true, text: 'Your painting is kept on this iPad automatically, even if you close the game.' },

@@ -12,6 +12,7 @@
  */
 import type { Rand } from './random';
 import { cryptoRand } from './random';
+import { sound } from '../audio/sound';
 
 export type W = [number, number];
 
@@ -168,6 +169,7 @@ export class Effects {
 
   /** A fiery explosion. `k` scales its size. */
   explosion(w: W, k = 1) {
+    sound.play(k >= 2 ? 'bigBoom' : 'boom', k);
     const r = this.rand;
     this.spawn(w, { kind: 'glow', color: '#fff3b0', size: 8 * k, size1: 70 * k, life: 0.35, alpha: 0.95, fadeIn: 0.05 });
     for (let i = 0; i < 6; i++) {
@@ -199,6 +201,7 @@ export class Effects {
 
   /** Firework burst in the given colours. */
   firework(w: W, colors: string[], k = 1) {
+    sound.play('pop');
     this.spawn(w, { kind: 'glow', color: '#ffffff', size: 6, size1: 50 * k, life: 0.3, fadeIn: 0 });
     const n = 46;
     for (let i = 0; i < n; i++) {
@@ -222,6 +225,8 @@ export class Effects {
   }
 
   doves(w: W, n = 8) {
+    sound.play('chirp');
+    setTimeout(() => sound.play('chirp'), 450);
     for (let i = 0; i < n; i++) {
       const dir = i % 2 ? 1 : -1;
       this.spawn(w, {
@@ -564,6 +569,7 @@ export class Missile implements Scene {
     return [ax + (bx - ax) * t, ay + (by - ay) * t - Math.sin(Math.PI * t) * h];
   }
   update(dt: number, fx: Effects) {
+    if (this.t === 0) sound.play('launch');
     this.t += dt;
     const p = Math.min(1, this.t / this.dur);
     this.trail += dt;

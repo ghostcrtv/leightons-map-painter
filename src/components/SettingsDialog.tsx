@@ -2,16 +2,46 @@ import { useState } from 'react';
 import { mapController } from '../game/mapController';
 import { useGame } from '../game/store';
 import { Modal } from './Modal';
+import { sound } from '../audio/sound';
 
 export function SettingsDialog() {
   const s = useGame();
   const [confirm, setConfirm] = useState(false);
+  const [soundOn, setSoundOn] = useState(sound.enabled);
+  const [volume, setVolume] = useState(sound.volume);
   const changed = s.territoryReady && mapController.worldChanged();
   return (
     <Modal title="Settings" onClose={() => s.setSettingsOpen(false)}>
       <Toggle label="Show country names" checked={s.showLabels} onChange={s.setShowLabels} />
       <Toggle label="Show capital cities" hint="Yellow stars, when you zoom in" checked={s.showCapitals} onChange={s.setShowCapitals} />
       <Toggle label="Show borders" checked={s.showBorders} onChange={s.setShowBorders} />
+      <Toggle
+        label="Sound effects"
+        hint="Battles, disasters, wheels and the paint bucket"
+        checked={soundOn}
+        onChange={(v) => {
+          sound.setEnabled(v);
+          setSoundOn(v);
+        }}
+      />
+      {soundOn && (
+        <label className="volume">
+          <span>Volume</span>
+          <input
+            id="sound-volume"
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={volume}
+            onChange={(e) => {
+              sound.setVolume(Number(e.target.value));
+              setVolume(Number(e.target.value));
+            }}
+            onPointerUp={() => sound.play('boom')}
+          />
+        </label>
+      )}
       <div className="settings-section">
         <h3>World</h3>
         {!confirm ? (

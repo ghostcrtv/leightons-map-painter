@@ -795,3 +795,7 @@ button:disabled { cursor: default; }
   background: rgba(255, 138, 61, 0.14); color: #ffd0ad;
 }
 @media (prefers-reduced-motion: reduce) { .swords, .sim-banner, .sim-report { animation: none; } }
+
+/* ------------------------------------------------------------- sound */
+.volume { display: flex; align-items: center; gap: 14px; min-height: 48px; padding: 0 2px 8px; font-weight: 700; }
+.volume input { flex: 1; accent-color: var(--gold); height: 32px; }

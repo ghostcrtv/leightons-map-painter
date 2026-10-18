@@ -6,6 +6,7 @@
 import {
   Cone, Cracks, Crater, type Effects, FlagPop, Hurricane, Meteor, Missile, Ring, Sun, Timeline, Tornado, Waves, type W,
 } from './effects';
+import { DISASTER_SOUND, sound } from '../audio/sound';
 import type { ConflictOutcome } from './conflict';
 
 export interface BattleShow {
@@ -117,6 +118,7 @@ export const DISASTER_SECONDS = 3.8;
 export function playDisaster(fx: Effects, s: DisasterShow) {
   const R = s.R;
   const tl = new Timeline(DISASTER_SECONDS, s.done);
+  for (const name of DISASTER_SOUND[s.type] ?? []) sound.play(name);
   const any = () => fx.pick(s.pts.length ? s.pts : [s.center]);
   const around = (spread = 1): W => fx.offset(s.center, fx.between(-1, 1) * R * spread, fx.between(-0.8, 0.8) * R * spread);
   let climaxAt = 1.6;
