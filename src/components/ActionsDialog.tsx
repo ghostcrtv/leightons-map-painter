@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sound } from '../audio/sound';
 import { bump } from '../game/achievements';
+import { shareMapPicture } from '../game/snapshot';
 import { useGame } from '../game/store';
 import { mapController } from '../game/mapController';
 import { WHEELS, landingAngle, optionAt, randomIndex, type WheelDef, type WheelOption } from '../actions/wheels';
@@ -106,6 +107,20 @@ export function ActionsDialog() {
               </span>
               <strong>Badges</strong>
               <small>Achievements you’ve unlocked</small>
+            </button>
+            <button
+              className="action-card"
+              onClick={() => {
+                setOpen(false);
+                // Wait for the window to close so the picture shows just the map.
+                setTimeout(() => void shareMapPicture(), 350);
+              }}
+            >
+              <span className="action-emoji" aria-hidden>
+                📸
+              </span>
+              <strong>Picture of the map</strong>
+              <small>Save or share it, with your world’s name and year</small>
             </button>
           </div>
         </>

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.0 — 2026-10-18 — Looks and polish (big phase, stage 5)
+
+- New: battles now have tanks rolling to the front, jets flying over, and warships firing from
+  the sea when there's water nearby.
+- New: Day and night (Settings): night slowly moves around the world and capital cities light up.
+- New: Picture of the map (Actions menu): the map with a banner of your world's name and year —
+  on iPad it opens the Share sheet (Save Image, Messages…), elsewhere it downloads.
+
 ## 0.11.0 — 2026-10-18 — Leighton's game (big phase, stage 4)
 
 - New: Create a country (Actions menu): name, capital, and a flag designer (stripes, cross,

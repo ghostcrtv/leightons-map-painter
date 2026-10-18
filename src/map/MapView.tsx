@@ -214,6 +214,9 @@ export function MapView() {
           },
         });
         attachSimulation(r, fx);
+        const night = (on: boolean) => fx.setNight(on ? { worldW: world.width, worldH: world.height, lights: world.capitals.map((c) => [c.x, c.y] as [number, number]) } : null);
+        night(useGame.getState().showNight);
+        cleanups.push(useGame.subscribe((st, prev) => st.showNight !== prev.showNight && night(st.showNight)));
         cleanups.push(() => {
           attachSimulation(null, null);
           fx.destroy();

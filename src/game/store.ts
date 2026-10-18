@@ -75,6 +75,7 @@ interface GameState {
   showLabels: boolean;
   showBorders: boolean;
   showCapitals: boolean;
+  showNight: boolean;
 
   setTool(t: Tool): void;
   setBrush(b: BrushSize): void;
@@ -112,6 +113,7 @@ interface GameState {
   setShowLabels(v: boolean): void;
   setShowBorders(v: boolean): void;
   setShowCapitals(v: boolean): void;
+  setShowNight(v: boolean): void;
 }
 
 export const useGame = create<GameState>((set) => ({
@@ -156,6 +158,7 @@ export const useGame = create<GameState>((set) => ({
   showLabels: readSetting('showLabels', true),
   showBorders: readSetting('showBorders', true),
   showCapitals: readSetting('showCapitals', true),
+  showNight: readSetting('showNight', false),
 
   setTool: (tool) => set((s) => ({ tool, brush: tool === 'land' && s.brush === 'F' ? 'M' : s.brush })),
   setLandMode: (landMode) => set({ landMode }),
@@ -200,6 +203,10 @@ export const useGame = create<GameState>((set) => ({
   setShowBorders: (showBorders) => {
     writeSetting('showBorders', showBorders);
     set({ showBorders });
+  },
+  setShowNight: (showNight) => {
+    writeSetting('showNight', showNight);
+    set({ showNight });
   },
   setShowCapitals: (showCapitals) => {
     writeSetting('showCapitals', showCapitals);

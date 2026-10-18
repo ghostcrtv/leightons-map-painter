@@ -75,6 +75,15 @@ export class Effects {
   readonly rand: Rand = cryptoRand;
   /** Play speed (2 = twice as fast: used when simulating a whole year). */
   speed = 1;
+  /** Day and night: a soft night shadow drifting across the map, with city lights. */
+  private night: { worldW: number; worldH: number; lights: W[] } | null = null;
+  /** Seconds for one whole day. */
+  static DAY_SECONDS = 120;
+
+  setNight(on: { worldW: number; worldH: number; lights: W[] } | null) {
+    this.night = on;
+    this.kick();
+  }
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -262,7 +271,7 @@ export class Effects {
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     const onlySmoke = this.scenes.length === 0 && this.particles.every((p) => p.kind === 'puff' || p.kind === 'glow');
-    if (onlySmoke && this.particles.length === 0 && this.smolder.length === 0) {
+    if (onlySmoke && this.particles.length === 0 && this.smolder.length === 0 && !this.night) {
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
       if (this.shaken) {
         this.host.shake(0, 0);
@@ -273,7 +282,7 @@ export class Effects {
     this.raf = requestAnimationFrame(this.frame);
     // Only smoke from weakened countries: 30 fps is plenty (saves battery).
     const stepDt = onlySmoke ? (now - this.lastDraw) / 1000 : dt;
-    if (onlySmoke && now - this.lastDraw < 32) return;
+    if (onlySmoke && now - this.lastDraw < (this.smolder.length || this.particles.length ? 32 : 66)) return;
     this.lastDraw = now;
     this.step(Math.min(0.1, stepDt) * this.speed);
     this.draw();
@@ -344,6 +353,7 @@ export class Effects {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    if (this.night) this.drawNight(ctx, this.night);
     for (const s of this.scenes) if (s.draw && (s as { behind?: boolean }).behind) s.draw(ctx, this);
     for (const p of this.particles) {
       if (p.delay > 0) continue;
@@ -404,6 +414,51 @@ export class Effects {
     }
     ctx.globalAlpha = 1;
     for (const s of this.scenes) if (s.draw && !(s as { behind?: boolean }).behind) s.draw(ctx, this);
+  }
+
+  /** The night side of the world: a dark band (soft edges) that moves west to east, city lights in it. */
+  private drawNight(ctx: CanvasRenderingContext2D, n: { worldW: number; worldH: number; lights: W[] }) {
+    const phase = (performance.now() / 1000 / Effects.DAY_SECONDS) % 1;
+    const W = n.worldW;
+    const center = W * (1 - phase); // the sun moves east to west, so night does too
+    const half = W / 4;
+    const soft = W * 0.06;
+    const [, top] = this.host.toScreen(0, 0);
+    const [, bottom] = this.host.toScreen(0, n.worldH);
+    for (const shift of [-W, 0, W]) {
+      const c = center + shift;
+      const [x0] = this.host.toScreen(c - half - soft, 0);
+      const [x1] = this.host.toScreen(c - half + soft, 0);
+      const [x2] = this.host.toScreen(c + half - soft, 0);
+      const [x3] = this.host.toScreen(c + half + soft, 0);
+      if (x3 < 0 || x0 > this.width) continue;
+      const g = ctx.createLinearGradient(x0, 0, x3, 0);
+      const t1 = (x1 - x0) / (x3 - x0 || 1);
+      const t2 = (x2 - x0) / (x3 - x0 || 1);
+      g.addColorStop(0, 'rgba(6,12,40,0)');
+      g.addColorStop(Math.max(0, Math.min(1, t1)), 'rgba(6,12,40,0.42)');
+      g.addColorStop(Math.max(0, Math.min(1, t2)), 'rgba(6,12,40,0.42)');
+      g.addColorStop(1, 'rgba(6,12,40,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x0, Math.max(0, top), x3 - x0, Math.min(this.height, bottom) - Math.max(0, top));
+    }
+    // City lights where it is night.
+    const glow = this.sprite('#ffd54f');
+    const t = performance.now() / 1000;
+    for (const [i, p] of n.lights.entries()) {
+      let d = Math.abs(((p[0] - center) % W) + W) % W;
+      d = Math.min(d, W - d);
+      if (d > half) continue;
+      const [x, y] = this.host.toScreen(p[0], p[1]);
+      if (x < -10 || y < -10 || x > this.width + 10 || y > this.height + 10) continue;
+      const k = Math.min(1, (half - d) / soft);
+      const size = 3 + Math.sin(t * 2 + i) * 0.6;
+      ctx.globalAlpha = 0.85 * k;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.drawImage(glow, x - size * 2, y - size * 2, size * 4, size * 4);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.globalAlpha = 1;
   }
 
   /** A soft round blob of colour (cached). */
@@ -1083,5 +1138,188 @@ export class Crater implements Scene {
     ctx.fill();
     ctx.stroke();
     ctx.globalAlpha = 1;
+  }
+}
+
+/** A little tank rolling toward the front, firing a few shots. */
+export class Tank implements Scene {
+  private t = 0;
+  private shots = 0;
+  constructor(
+    private from: W,
+    private to: W,
+    private dur: number,
+    private color: string,
+    private delay = 0,
+  ) {}
+  private where(fx: Effects): { x: number; y: number; dir: number } {
+    const [ax, ay] = fx.screen(this.from);
+    const [bx, by] = fx.screen(this.to);
+    const p = Math.max(0, Math.min(1, (this.t - this.delay) / this.dur));
+    const e = 1 - (1 - p) * (1 - p);
+    return { x: ax + (bx - ax) * e * 0.75, y: ay + (by - ay) * e * 0.75, dir: bx >= ax ? 1 : -1 };
+  }
+  update(dt: number, fx: Effects) {
+    this.t += dt;
+    if (this.t < this.delay) return true;
+    const { x, y, dir } = this.where(fx);
+    if (fx.rand() < 0.25) fx.puff(fx.host.toWorld(x - dir * 8, y + 4), '#b8a07a', 2, 9, 0.7, { alpha: 0.5, vx: -dir * 10 });
+    const life = this.t - this.delay;
+    if (life > this.dur * 0.6 && this.shots < 2 && fx.rand() < 0.04) {
+      this.shots++;
+      fx.spawn(fx.host.toWorld(x + dir * 14, y - 4), { kind: 'glow', color: '#fff3b0', size: 3, size1: 14, life: 0.18, fadeIn: 0 });
+      fx.explosion(fx.offset(this.to, fx.between(-10, 10), fx.between(-8, 8)), 0.45);
+    }
+    return life < this.dur + 0.8;
+  }
+  draw(ctx: CanvasRenderingContext2D, fx: Effects) {
+    if (this.t < this.delay) return;
+    const { x, y, dir } = this.where(fx);
+    const fade = Math.min(1, (this.t - this.delay) / 0.3, (this.dur + 0.8 - (this.t - this.delay)) / 0.4);
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, fade);
+    ctx.translate(x, y);
+    ctx.scale(dir, 1);
+    // treads
+    ctx.fillStyle = '#2b2f33';
+    ctx.beginPath();
+    ctx.ellipse(0, 3, 10, 3.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // hull
+    ctx.fillStyle = '#5b6b3a';
+    ctx.strokeStyle = '#1d2412';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.rect(-9, -3, 18, 5);
+    ctx.fill();
+    ctx.stroke();
+    // turret (the side's colour)
+    ctx.fillStyle = this.color;
+    ctx.beginPath();
+    ctx.arc(0, -4, 4.2, Math.PI, 0);
+    ctx.fill();
+    ctx.stroke();
+    // barrel
+    ctx.strokeStyle = '#1d2412';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(3, -5);
+    ctx.lineTo(13, -6.5);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/** A jet flying over the battle with a contrail. */
+export class Jet implements Scene {
+  private t = 0;
+  constructor(
+    private from: W,
+    private to: W,
+    private dur: number,
+    private color: string,
+    private delay = 0,
+  ) {}
+  private where(fx: Effects): { x: number; y: number; ang: number } {
+    const [ax, ay] = fx.screen(this.from);
+    const [bx, by] = fx.screen(this.to);
+    const p = Math.max(0, Math.min(1, (this.t - this.delay) / this.dur));
+    const dx = bx - ax;
+    const dy = by - ay;
+    // Fly past the target a bit, high above the ground.
+    return { x: ax + dx * (p * 1.4 - 0.2), y: ay + dy * (p * 1.4 - 0.2) - 40, ang: Math.atan2(dy, dx) };
+  }
+  update(dt: number, fx: Effects) {
+    this.t += dt;
+    if (this.t < this.delay) return true;
+    const { x, y } = this.where(fx);
+    fx.puff(fx.host.toWorld(x, y), '#ffffff', 1.5, 5, 0.9, { alpha: 0.45, fadeIn: 0 });
+    return this.t - this.delay < this.dur;
+  }
+  draw(ctx: CanvasRenderingContext2D, fx: Effects) {
+    if (this.t < this.delay) return;
+    const { x, y, ang } = this.where(fx);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    // shadow on the ground
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.beginPath();
+    ctx.ellipse(-6, 40, 10, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#d7dde3';
+    ctx.strokeStyle = '#37474f';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(12, 0);
+    ctx.lineTo(-8, -2.2);
+    ctx.lineTo(-10, 0);
+    ctx.lineTo(-8, 2.2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // wings
+    ctx.fillStyle = this.color;
+    ctx.beginPath();
+    ctx.moveTo(2, 0);
+    ctx.lineTo(-5, -9);
+    ctx.lineTo(-7, -9);
+    ctx.lineTo(-3, 0);
+    ctx.lineTo(-7, 9);
+    ctx.lineTo(-5, 9);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/** A warship bobbing on the sea, firing missiles at the enemy. */
+export class Ship implements Scene {
+  private t = 0;
+  private fired = 0;
+  constructor(
+    private at: W,
+    private targets: W[],
+    private life: number,
+    private color: string,
+    private dir: number,
+  ) {}
+  update(dt: number, fx: Effects) {
+    this.t += dt;
+    if (this.fired < 3 && this.t > 0.4 + this.fired * 0.7 && this.targets.length) {
+      this.fired++;
+      fx.add(new Missile(fx.offset(this.at, this.dir * 6, -6), fx.pick(this.targets), fx.between(0.8, 1.1), this.color, 1.1));
+    }
+    if (fx.rand() < 0.15) fx.spawn(fx.offset(this.at, -this.dir * 14, 3), { kind: 'dot', color: '#e3f2fd', size: 1.6, size1: 0.4, life: 0.8, vx: -this.dir * 18, fadeIn: 0 });
+    return this.t < this.life;
+  }
+  draw(ctx: CanvasRenderingContext2D, fx: Effects) {
+    const [x, y0] = fx.screen(this.at);
+    const y = y0 + Math.sin(this.t * 3) * 1.2;
+    const fade = Math.min(1, this.t / 0.4, (this.life - this.t) / 0.4);
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, fade);
+    ctx.translate(x, y);
+    ctx.scale(this.dir, 1);
+    ctx.rotate(Math.sin(this.t * 2) * 0.03);
+    ctx.fillStyle = '#546e7a';
+    ctx.strokeStyle = '#1c262b';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-16, -2);
+    ctx.lineTo(16, -2);
+    ctx.lineTo(11, 4);
+    ctx.lineTo(-13, 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#90a4ae';
+    ctx.fillRect(-6, -7, 10, 5);
+    ctx.strokeRect(-6, -7, 10, 5);
+    ctx.fillStyle = this.color;
+    ctx.fillRect(-2, -12, 2, 5);
+    ctx.fillRect(0, -12, 5, 3);
+    ctx.restore();
   }
 }

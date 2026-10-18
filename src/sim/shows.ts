@@ -4,7 +4,7 @@
  * and `done` at the end.
  */
 import {
-  Cone, Cracks, Crater, type Effects, FlagPop, Hurricane, Meteor, Missile, Ring, Sun, Timeline, Tornado, Waves, type W,
+  Cone, Cracks, Crater, type Effects, FlagPop, Hurricane, Jet, Meteor, Missile, Ring, Ship, Sun, Tank, Timeline, Tornado, Waves, type W,
 } from './effects';
 import { DISASTER_SOUND, sound } from '../audio/sound';
 import type { ConflictOutcome } from './conflict';
@@ -28,6 +28,9 @@ export interface BattleShow {
   loserPts: W[];
   winnerFlag: HTMLImageElement | null;
   winnerColors: string[];
+  /** Sea near each side's front (warships appear there). */
+  aSea?: W[];
+  bSea?: W[];
   climax: () => void;
   done: () => void;
 }
@@ -42,6 +45,21 @@ export function playBattle(fx: Effects, s: BattleShow) {
     const target = to ?? fx.pick(fromA ? s.bPts : s.aPts);
     fx.add(new Missile(from, target, dur ?? fx.between(0.7, 1.0), fromA ? s.aColor : s.bColor, k));
   };
+  // Tanks roll toward the front, jets fly over, warships fire from the sea.
+  const aFront = s.aPts[0];
+  const bFront = s.bPts[0];
+  if (aFront && bFront) {
+    const far = (pts: W[], from: W) => [...pts].sort((p, q) => (q[0] - from[0]) ** 2 + (q[1] - from[1]) ** 2 - ((p[0] - from[0]) ** 2 + (p[1] - from[1]) ** 2));
+    const aBack = far(s.aPts, bFront).slice(0, 3);
+    const bBack = far(s.bPts, aFront).slice(0, 3);
+    aBack.slice(0, s.aFire >= 0.5 ? 3 : 2).forEach((p, i) => fx.add(new Tank(p, bFront, fight * 0.8, s.aColor, 0.1 + i * 0.35)));
+    bBack.slice(0, s.aFire < 0.5 ? 3 : 2).forEach((p, i) => fx.add(new Tank(p, aFront, fight * 0.8, s.bColor, 0.25 + i * 0.35)));
+    fx.add(new Jet(fx.pick(aBack.length ? aBack : [aFront]), bFront, 1.4, s.aColor, 0.6));
+    fx.add(new Jet(fx.pick(bBack.length ? bBack : [bFront]), aFront, 1.4, s.bColor, 1.5));
+    if (s.aSea?.length) fx.add(new Ship(s.aSea[0], s.bPts, fight, s.aColor, bFront[0] >= s.aSea[0][0] ? 1 : -1));
+    if (s.bSea?.length) fx.add(new Ship(s.bSea[0], s.aPts, fight, s.bColor, aFront[0] >= s.bSea[0][0] ? 1 : -1));
+  }
+
   // The fight: missiles both ways, more from the stronger side.
   tl.every(0, fight, 0.16, () => fire(fx.rand() < s.aFire));
   // Shelling along the front.

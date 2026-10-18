@@ -373,6 +373,8 @@ export async function conflict(t: Territory, a: string, b: string, mode: Mode = 
   };
   const pa = Math.pow(Math.max(A.power, 1), 2);
   const pb = Math.pow(Math.max(B.power, 1), 2);
+  const aSea = mode.silent ? [] : seaNear(t, aFront, view);
+  const bSea = mode.silent ? [] : seaNear(t, bFront, view);
 
   await show(
     mode,
@@ -390,6 +392,8 @@ export async function conflict(t: Territory, a: string, b: string, mode: Mode = 
         loserPts: loserPts.length ? loserPts : [target],
         winnerFlag: winnerImg,
         winnerColors: result.winner ? [colorOf(result.winner)] : [],
+        aSea,
+        bSea,
         climax: apply,
         done,
       }),
@@ -415,6 +419,27 @@ export async function conflict(t: Territory, a: string, b: string, mode: Mode = 
     allies: [...alliesA, ...alliesB],
     damage: outcome === 'partial' ? { id: result.loser!, ...m.loser } : null,
   };
+}
+
+/** A spot of open sea near a point (for warships), if there is one on screen. */
+function seaNear(t: Territory, p: W, view: (q: W) => boolean): W[] {
+  const g = t.grid;
+  const c0 = Math.floor(p[0] / g.cell);
+  const r0 = Math.floor(p[1] / g.cell);
+  for (let d = 4; d < 60; d += 2) {
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      const c = Math.round(c0 + Math.cos(a) * d);
+      const r = Math.round(r0 + Math.sin(a) * d);
+      if (r < 2 || c < 2 || r >= g.rows - 2 || c >= g.cols - 2) continue;
+      // Open water: the cell and its neighbours are all sea.
+      let open = true;
+      for (let m = -2; m <= 2 && open; m++) for (let n = -2; n <= 2 && open; n++) if (g.current[(r + m) * g.cols + c + n] !== 0) open = false;
+      const q: W = [(c + 0.5) * g.cell, (r + 0.5) * g.cell];
+      if (open && view(q)) return [q];
+    }
+  }
+  return [];
 }
 
 /** The cell of `code`'s land closest to cell `from` (searching outward in rings). */
