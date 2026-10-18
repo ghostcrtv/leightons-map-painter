@@ -7,7 +7,6 @@ import {
   IconChevronDown,
   IconChevronUp,
   IconClose,
-  IconLock,
   IconReset,
   IconShield,
   IconSliders,
@@ -15,6 +14,7 @@ import {
   IconTarget,
   IconWaves,
 } from './icons';
+import { PowerCard } from './PowerCard';
 
 /**
  * Information about the tapped country. Right-hand panel on iPad landscape and
@@ -30,8 +30,12 @@ export function CountryPanel() {
   const territoryReady = useGame((s) => s.territoryReady);
   useGame((s) => s.territoryVersion); // re-read the numbers whenever territory changes
   const [confirmReset, setConfirmReset] = useState(false);
+  const [editingStats, setEditingStats] = useState(false);
   const ref = useRef<HTMLElement>(null);
-  useEffect(() => setConfirmReset(false), [selectedId]);
+  useEffect(() => {
+    setConfirmReset(false);
+    setEditingStats(false);
+  }, [selectedId]);
 
   const country = selectedId ? countryById.get(selectedId) : undefined;
 
@@ -165,22 +169,7 @@ export function CountryPanel() {
           </dl>
         </section>
 
-        <section className="stat-card locked">
-          <h3>
-            Power <IconLock width={14} height={14} />
-          </h3>
-          <p className="muted">
-            Attack, Defense, Money, Military and a total Power Score arrive in the next update.
-          </p>
-          <div className="power-ghost" aria-hidden>
-            {['Attack', 'Defense', 'Money', 'Military'].map((k) => (
-              <div key={k}>
-                <span>{k}</span>
-                <i />
-              </div>
-            ))}
-          </div>
-        </section>
+        <PowerCard id={country.id} editing={editingStats} setEditing={setEditingStats} />
 
         <div className="actions">
           <button className="action primary" onClick={startPainting} disabled={!territoryReady || country.disputed}>
@@ -198,7 +187,9 @@ export function CountryPanel() {
           )}
           <SoonAction icon={<IconSword />} label="Attack" />
           <SoonAction icon={<IconShield />} label="Defend" />
-          <SoonAction icon={<IconSliders />} label="Edit Stats" />
+          <button className="action" onClick={() => setEditingStats(!editingStats)} aria-pressed={editingStats}>
+            <IconSliders /> {editingStats ? 'Done editing' : 'Edit Stats'}
+          </button>
           {changed && <SoonAction icon={<IconWaves />} label="Expand Land" />}
         </div>
         {confirmReset && (

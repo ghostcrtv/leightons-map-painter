@@ -2,8 +2,8 @@
 
 ## Current phase
 
-**Phase 2: Territory Painting — complete (waiting for iPad testing).**
-Next up: **Phase 3: Country statistics** (Attack, Defense, Money, Military, Power Score).
+**Phase 3: Country statistics — complete (waiting for iPad testing).**
+Next up: **Phase 4: Battles** (attacker vs defender, results, conquest choices).
 
 ## Completed
 
@@ -31,12 +31,24 @@ Next up: **Phase 3: Country statistics** (Attack, Defense, Money, Military, Powe
 - Territory score (% / "×" bigger), land gained/lost, "Conquered".
 - Autosave of the current world in the browser.
 - Paint Pin logo and Home Screen icon.
+- Selected country: light-blue line = its real border, striped gold line = all land it owns now.
+
+### Phase 3 — Country statistics
+- Attack, Defense, Money and Military ratings (1–100) for all 255 countries and territories,
+  plus Power Score = Attack 25% + Defense 25% + Money 20% + Military 30% (rounded).
+- Starting ratings are approximate gameplay estimates (`scripts/make-stats.mjs`), labelled so.
+- Power card in the country panel (score, rank, bars); Edit Stats with sliders and −/+ buttons;
+  reset one country or all. Edits are saved in the browser and never change the starting data.
+- Power rankings window: sort by any rating, search, tap to fly to a country.
+- Spreadsheet import (CSV from Excel/Numbers/Google Sheets; forgiving column and country
+  names; unmatched rows are listed) and export ("Download all ratings").
+- Actions menu (wheel button, left of Settings) with spin wheels: random Country,
+  War / Land / Erode, Tiny…All, and 8 directions. New wheels = one entry in `src/actions/wheels.ts`.
 
 ## Upcoming
 
 | Phase | What | Notes |
 |---|---|---|
-| 3 | Country statistics | Attack, Defense, Money, Military, Power Score; rankings; edit stats; spreadsheet import |
 | 4 | Battles | Quick Battle, Full Invasion, Border Conflict, Custom; results and conquest choices |
 | 5 | Land expansion | Paint into water, coastline expansion, island creation, land removal |
 | 6 | Saving | IndexedDB save slots, rename/duplicate/delete, export/import files, versioned saves |

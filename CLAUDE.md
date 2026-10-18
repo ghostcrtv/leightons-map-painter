@@ -63,7 +63,8 @@ src/styles/app.css  all styles
 tests/              Vitest tests
 ```
 
-Planned folders (create when the phase starts): `src/stats/` (Phase 3), `src/battles/` (Phase 4), `src/storage/` (Phase 6),
+Also: `src/stats/` (ratings.ts pure + tested, csv.ts, session.ts), `src/actions/wheels.ts`.
+Planned folders (create when the phase starts): `src/battles/` (Phase 4), `src/storage/` (Phase 6),
 `src/simulation/` (future auto-simulation).
 
 ## Map rendering approach
@@ -154,7 +155,23 @@ Original Earth + a list of actions = the current world. Files: `src/territory/`.
   Headless Chromium (software drawing) takes ~85 ms/frame for the whole map regardless; real
   devices use GPU canvas — check painting smoothness on the iPad.
 
-## Battle calculation system (design — Phase 3/4)
+## Country statistics (built in Phase 3)
+
+- `public/data/stats.json` = starting ratings `[attack, defense, money, military]` per id, made by
+  `scripts/make-stats.mjs` (hand-set for ~100 countries, tiers + small jitter for the rest).
+  Approximate GAMEPLAY ESTIMATES; always label them so in the UI.
+- `StatsBook` (src/stats/ratings.ts): defaults + player `overrides`; `powerScore` uses
+  `POWER_WEIGHTS` (0.25/0.25/0.20/0.30). Overrides saved via `writeSetting('statsEdits')`
+  (`{formatVersion:1, overrides}`) — move behind the storage adapter / into save slots in Phase 6.
+- CSV (src/stats/csv.ts): forgiving import (column synonyms, ISO codes, names, nicknames,
+  `,` `;` or tab); a Power column is ignored (always computed). Export via `utils/files.ts`
+  (the file adapter to swap for the iOS Share sheet later).
+- UI: `PowerCard` (country panel, Edit Stats), `RankingsDialog`, `ActionsDialog` (spin wheels;
+  `landingAngle`/`optionAt` are tested so the pointer always matches the result; uses crypto randomness).
+- Selection outline: unchanged country = solid gold; changed = light-blue `REAL_BORDER` on the
+  real border + striped gold ring around all owned land (`drawOwnedOutline`, offscreen mask).
+
+## Battle calculation system (design — Phase 4)
 
 - Ratings 1–100: attack, defense, resources (money), military.
   Comprehensive Power = round(attack·0.25 + defense·0.25 + resources·0.20 + military·0.30).

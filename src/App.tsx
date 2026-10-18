@@ -8,6 +8,8 @@ import { StatusBar } from './components/StatusBar';
 import { HelpDialog } from './components/HelpDialog';
 import { SettingsDialog } from './components/SettingsDialog';
 import { TOUR_SEEN_KEY, WelcomeTour } from './components/WelcomeTour';
+import { ActionsDialog } from './components/ActionsDialog';
+import { RankingsDialog } from './components/RankingsDialog';
 import { readSetting } from './utils/settings';
 
 export default function App() {
@@ -17,6 +19,8 @@ export default function App() {
   const helpOpen = useGame((s) => s.helpOpen);
   const settingsOpen = useGame((s) => s.settingsOpen);
   const tourOpen = useGame((s) => s.tourOpen);
+  const actionsOpen = useGame((s) => s.actionsOpen);
+  const rankingsOpen = useGame((s) => s.rankingsOpen);
 
   // First visit: show the welcome tour once the map is ready.
   useEffect(() => {
@@ -55,6 +59,8 @@ export default function App() {
       )}
       {helpOpen && <HelpDialog />}
       {settingsOpen && <SettingsDialog />}
+      {actionsOpen && <ActionsDialog />}
+      {rankingsOpen && <RankingsDialog />}
       {tourOpen && <WelcomeTour />}
     </div>
   );

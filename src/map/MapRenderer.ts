@@ -54,6 +54,8 @@ const OCEAN_DEEP = '#1f5a7d';
 const BORDER = 'rgba(16, 22, 30, 0.8)';
 const SELECT = '#ffd34d';
 const CAPITAL = '#ffd34d';
+/** Selected country's real (original) borders, once they have changed. */
+const REAL_BORDER = '#5ad8ff';
 /** A capital appears once its country is at least this many CSS px across on screen… */
 const CAPITAL_MIN_COUNTRY_PX = 140;
 /** …or, for small countries, once zoomed in this far. */
@@ -592,16 +594,25 @@ export class MapRenderer {
     const sel = this.selectedId ? this.world.byId.get(this.selectedId) : null;
     if (sel) {
       const path = this.pick(sel.outline, lod);
-      ctx.strokeStyle = 'rgba(0,0,0,0.75)';
-      ctx.lineWidth = 5.5 / s;
-      ctx.stroke(path);
-      ctx.strokeStyle = SELECT;
-      ctx.lineWidth = 3 / s;
-      // Borders have changed: the gold line shows the country's REAL borders, dashed.
-      const changed = this.territory?.layers().some((l) => l.owner === sel.info.id || l.resetId === sel.info.id || bboxIntersects(l.box, sel.box));
-      if (changed) ctx.setLineDash([8 / s, 6 / s]);
-      ctx.stroke(path);
-      ctx.setLineDash([]);
+      if (!this.bordersChanged(sel)) {
+        // Real borders = current borders: one solid gold outline.
+        ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+        ctx.lineWidth = 5.5 / s;
+        ctx.stroke(path);
+        ctx.strokeStyle = SELECT;
+        ctx.lineWidth = 3 / s;
+        ctx.stroke(path);
+      } else {
+        // Borders have changed: thin light-blue line = REAL borders,
+        // gold dashed outline = all the land the country owns NOW.
+        ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+        ctx.lineWidth = 3.6 / s;
+        ctx.stroke(path);
+        ctx.strokeStyle = REAL_BORDER;
+        ctx.lineWidth = 1.8 / s;
+        ctx.stroke(path);
+        this.drawOwnedOutline(ctx, sel, lod, cam, view, dpr, visible);
+      }
     }
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -880,6 +891,14 @@ export class MapRenderer {
       box.maxX = Math.max(box.maxX, x + r);
       box.maxY = Math.max(box.maxY, y + r);
     }
+    const r0 = live.rect;
+    if (kind === 'paint' && (!r0 || box.minX < r0.x || box.minY < r0.y || box.maxX > r0.x + r0.w || box.maxY > r0.y + r0.h)) {
+      // The paint has grown past the flag picture: redraw properly (re-fits the flag) instead
+      // of filling with a plain colour, which used to look like a black/grey glitch.
+      this.drawFull();
+      this.live = { ...live, drawn: circles.length, rect: this.ownerGroups().layer.get(`stroke${this.territory?.strokeInfo()?.id}:${circles.length}`) ?? null };
+      return;
+    }
     ctx.save();
     ctx.clip(this.pick(within.outline, live.lod), 'evenodd');
     if (kind === 'paint') {
@@ -894,6 +913,127 @@ export class MapRenderer {
     }
     ctx.restore();
     live.drawn = circles.length;
+  }
+
+  /** Has painting changed this country's land (taken from it, or added to it)? */
+  private bordersChanged(c: CountryShape): boolean {
+    const id = c.info.id;
+    return (this.territory?.layers() ?? []).some(
+      (l) =>
+        l.owner === id ||
+        l.resetId === id ||
+        l.within === id ||
+        (!l.within && l.kind !== 'resetCountry' && bboxIntersects(l.box, c.box)),
+    );
+  }
+
+  private maskCanvas: HTMLCanvasElement | null = null;
+  private ringCanvas: HTMLCanvasElement | null = null;
+  private stripes: CanvasPattern | null = null;
+
+  /**
+   * Gold-and-dark dashed outline around ALL the land a country owns right now.
+   * 1. Paint the owned land as a white mask (real land, plus painted gains, minus losses).
+   * 2. Spread the mask a few pixels in every direction and cut the mask out: a thin ring.
+   * 3. Colour the ring with diagonal gold/dark stripes, which reads as a dashed line.
+   * Only done on full redraws (not during brush strokes), for the selected country.
+   */
+  private drawOwnedOutline(
+    ctx: CanvasRenderingContext2D,
+    c: CountryShape,
+    lod: Lod,
+    cam: Camera,
+    view: Viewport,
+    dpr: number,
+    visible: BBox,
+  ) {
+    const W = Math.round(view.width * dpr);
+    const H = Math.round(view.height * dpr);
+    const get = (cv: HTMLCanvasElement | null) => {
+      const canvas = cv ?? document.createElement('canvas');
+      if (canvas.width !== W || canvas.height !== H) {
+        canvas.width = W;
+        canvas.height = H;
+      }
+      return canvas;
+    };
+    const mask = (this.maskCanvas = get(this.maskCanvas));
+    const ring = (this.ringCanvas = get(this.ringCanvas));
+    const m = mask.getContext('2d')!;
+    const id = c.info.id;
+    const s = cam.scale;
+
+    m.setTransform(1, 0, 0, 1, 0, 0);
+    m.globalCompositeOperation = 'source-over';
+    m.clearRect(0, 0, W, H);
+    m.setTransform(dpr * s, 0, 0, dpr * s, dpr * cam.x, dpr * cam.y);
+    m.fillStyle = '#fff';
+    const own = this.pick(c.outline, lod);
+    m.fill(own, 'evenodd');
+
+    for (const layer of this.territory?.layers() ?? []) {
+      const clip = this.layerClip(layer, lod);
+      if (!clip || !bboxIntersects(clip.box, visible)) continue;
+      const within = layer.within ? this.world.byId.get(layer.within) : undefined;
+      const rule: CanvasFillRule = layer.whole ? 'evenodd' : 'nonzero';
+      const land = within ? this.pick(within.outline, lod) : this.landUnder(clip.box, lod, `${clip.cacheKey}|${lod}`);
+      m.save();
+      if (layer.kind !== 'resetCountry') m.clip(land, 'evenodd');
+      if (layer.kind === 'paint') {
+        m.globalCompositeOperation = layer.owner === id ? 'source-over' : 'destination-out';
+        m.fill(clip.path, rule);
+      } else {
+        // Erase / reset: the area goes back to the real Earth.
+        m.globalCompositeOperation = 'destination-out';
+        m.fill(clip.path, rule);
+        m.globalCompositeOperation = 'source-over';
+        m.clip(clip.path, rule);
+        m.fill(own, 'evenodd');
+      }
+      m.restore();
+    }
+
+    const r = ring.getContext('2d')!;
+    r.setTransform(1, 0, 0, 1, 0, 0);
+    r.globalCompositeOperation = 'source-over';
+    r.clearRect(0, 0, W, H);
+    const w = Math.max(2, Math.round(2.5 * dpr));
+    for (const [dx, dy] of [[w, 0], [-w, 0], [0, w], [0, -w], [w * 0.7, w * 0.7], [-w * 0.7, w * 0.7], [w * 0.7, -w * 0.7], [-w * 0.7, -w * 0.7]]) {
+      r.drawImage(mask, dx, dy);
+    }
+    r.globalCompositeOperation = 'destination-out';
+    r.drawImage(mask, 0, 0);
+    r.globalCompositeOperation = 'source-in';
+    r.fillStyle = this.stripePattern(r, dpr);
+    r.fillRect(0, 0, W, H);
+
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(ring, 0, 0);
+    ctx.restore();
+  }
+
+  private stripePattern(ctx: CanvasRenderingContext2D, dpr: number): CanvasPattern | string {
+    if (this.stripes) return this.stripes;
+    const n = Math.round(14 * dpr);
+    const tile = document.createElement('canvas');
+    tile.width = tile.height = n;
+    const t = tile.getContext('2d')!;
+    t.fillStyle = '#1a1206';
+    t.fillRect(0, 0, n, n);
+    // Diagonal gold bands (three line segments so the tile repeats seamlessly).
+    t.strokeStyle = SELECT;
+    t.lineWidth = n * 0.36;
+    t.beginPath();
+    t.moveTo(-n * 0.5, n * 0.5);
+    t.lineTo(n * 0.5, -n * 0.5);
+    t.moveTo(0, n);
+    t.lineTo(n, 0);
+    t.moveTo(n * 0.5, n * 1.5);
+    t.lineTo(n * 1.5, n * 0.5);
+    t.stroke();
+    this.stripes = ctx.createPattern(tile, 'repeat');
+    return this.stripes ?? SELECT;
   }
 
   /**
@@ -970,7 +1110,9 @@ export class MapRenderer {
       const groups = c.clusters.map((cl) => ({ box: { ...cl.box }, members: [] as string[], grown: false }));
       for (const l of layers) {
         if (l.kind !== 'paint' || l.owner !== id) continue;
-        const lb = layerBox(l, this.world);
+        let lb = layerBox(l, this.world);
+        // A stroke still being painted will grow: leave room so new paint stays inside the flag.
+        if (l.key.startsWith('stroke')) lb = growStrokeBox(lb, l, this.world);
         let g = groups.find((g) => bboxIntersects(expandBox(g.box), lb));
         if (!g) {
           g = { box: emptyBBox(), members: [], grown: true };
@@ -1039,6 +1181,13 @@ function layerBox(l: Layer, world: World): BBox {
   const within = l.within ? world.byId.get(l.within) : undefined;
   if (l.whole) return within ? within.box : l.box;
   return within ? intersectBox(l.box, within.box) : l.box;
+}
+
+function growStrokeBox(b: BBox, l: Layer, world: World): BBox {
+  const pad = Math.max(bboxWidth(b), bboxHeight(b)) * 0.6 + (l.circles[2] ?? 0) * 6;
+  const grown = { minX: b.minX - pad, minY: b.minY - pad, maxX: b.maxX + pad, maxY: b.maxY + pad };
+  const within = l.within ? world.byId.get(l.within) : undefined;
+  return within ? intersectBox(grown, within.box) : grown;
 }
 
 function intersectBox(a: BBox, b: BBox): BBox {

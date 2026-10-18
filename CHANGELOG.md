@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 — 2026-10-17 — Phase 3: Country statistics + Action wheels
+
+- New: every country has Attack, Defense, Money and Military ratings and a Power Score
+  (approximate game estimates, not official figures). Shown on the country card with its rank.
+- New: Edit Stats (sliders and −/+), reset to starting ratings; edits are remembered.
+- New: Power rankings window (sort, search, tap to fly) with spreadsheet (CSV) import and export.
+- New: Actions menu (wheel button left of Settings) with four spin wheels: Country,
+  War / Land / Erode, How much (Tiny–All), Direction (8 ways).
+- Changed: a selected country shows its real border as a thin light-blue line, and a striped
+  gold line around all the land it owns now.
+- Fixed: newly painted land could flash black while painting fast past the flag's edge.
+
 ## 0.4.0 — 2026-10-17 — Smoother painting, country lock, Fill
 
 - Changed: a paint (or erase) stroke now stays inside the first country it reaches, so you

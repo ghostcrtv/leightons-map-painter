@@ -1,10 +1,11 @@
 import { useGame } from '../game/store';
 import { CountrySearch } from './CountrySearch';
-import { IconGear, IconHelp } from './icons';
+import { IconGear, IconHelp, IconWheel } from './icons';
 
 export function TopBar() {
   const setHelpOpen = useGame((s) => s.setHelpOpen);
   const setSettingsOpen = useGame((s) => s.setSettingsOpen);
+  const setActionsOpen = useGame((s) => s.setActionsOpen);
   return (
     <header className="topbar">
       <div className="brand">
@@ -15,6 +16,9 @@ export function TopBar() {
       </div>
       <CountrySearch />
       <div className="topbar-actions">
+        <button className="icon-btn" onClick={() => setActionsOpen(true)} aria-label="Actions: spin wheels and rankings" title="Actions">
+          <IconWheel />
+        </button>
         <button className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Settings" title="Settings">
           <IconGear />
         </button>

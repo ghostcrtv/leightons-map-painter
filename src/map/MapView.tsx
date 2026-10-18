@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { loadCountryRegistry } from '../data/countries';
 import { BRUSH_PX, useGame } from '../game/store';
 import { createTerritory, getTerritory } from '../territory/session';
+import { loadStats } from '../stats/session';
 import { attachMap } from '../game/mapController';
 import { FlagLibrary } from './flags';
 import { GestureController } from './gestures';
@@ -42,7 +43,11 @@ export function MapView() {
         game.setLoading('Loading countries…');
         const { countries: registry, capitals } = await loadCountryRegistry(BASE);
         game.setLoading('Drawing borders and flags…');
-        const [world, flags] = await Promise.all([loadWorld(BASE, registry, capitals), FlagLibrary.load(BASE)]);
+        const [world, flags] = await Promise.all([
+          loadWorld(BASE, registry, capitals),
+          FlagLibrary.load(BASE),
+          loadStats(BASE, registry.map((c) => c.id)),
+        ]);
         if (cancelled) return;
 
         renderer = new MapRenderer(canvas, world, flags);
@@ -215,7 +220,7 @@ export function MapView() {
       const step = 120;
       const st = useGame.getState();
       // A window (Help, Settings, tour) is open: keys belong to it.
-      if (st.helpOpen || st.settingsOpen || st.tourOpen) return;
+      if (st.helpOpen || st.settingsOpen || st.tourOpen || st.actionsOpen || st.rankingsOpen) return;
       // Undo: Cmd/Ctrl+Z · Redo: Shift+Cmd/Ctrl+Z or Ctrl+Y
       if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'y')) {
         const redo = e.key === 'y' || e.shiftKey;

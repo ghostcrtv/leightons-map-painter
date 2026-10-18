@@ -21,6 +21,8 @@ export const mapController = {
   /** Waits two frames so a just-opened country panel is measured before the map centres. */
   flyTo: (id: string) => requestAnimationFrame(() => requestAnimationFrame(() => renderer?.flyToCountry(id))),
   setInsets: (insets: Parameters<MapRenderer['setInsets']>[0]) => renderer?.setInsets(insets),
+  /** Flag's main colour (for wheels and charts). */
+  flagColor: (code: string | null) => flagLibrary?.averageColor(code) ?? '#8b95a1',
   flagUrl: (code: string | null) => (code && flagLibrary?.has(code) ? flagLibrary.largeUrl(code) : null),
   undo: () => getTerritory()?.undo(),
   redo: () => getTerritory()?.redo(),

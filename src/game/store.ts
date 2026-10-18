@@ -34,6 +34,11 @@ interface GameState {
   territoryVersion: number;
   canUndo: boolean;
   canRedo: boolean;
+  /** Bumps when any power rating changes. */
+  statsVersion: number;
+  /** Which pop-up window is open from the Actions menu (null = none). */
+  actionsOpen: boolean;
+  rankingsOpen: boolean;
   selectedId: string | null;
   panelCollapsed: boolean;
 
@@ -49,6 +54,9 @@ interface GameState {
   setPainter(id: string | null): void;
   territoryChanged(info: { canUndo: boolean; canRedo: boolean }): void;
   setTerritoryReady(): void;
+  statsChanged(): void;
+  setActionsOpen(v: boolean): void;
+  setRankingsOpen(v: boolean): void;
   setLoading(message: string): void;
   setError(message: string): void;
   setReady(countries: CountryInfo[]): void;
@@ -77,6 +85,9 @@ export const useGame = create<GameState>((set) => ({
   territoryVersion: 0,
   canUndo: false,
   canRedo: false,
+  statsVersion: 0,
+  actionsOpen: false,
+  rankingsOpen: false,
   selectedId: null,
   panelCollapsed: false,
 
@@ -95,6 +106,9 @@ export const useGame = create<GameState>((set) => ({
   setPainter: (painterId) => set({ painterId }),
   territoryChanged: ({ canUndo, canRedo }) => set((s) => ({ territoryVersion: s.territoryVersion + 1, canUndo, canRedo })),
   setTerritoryReady: () => set({ territoryReady: true }),
+  statsChanged: () => set((s) => ({ statsVersion: s.statsVersion + 1 })),
+  setActionsOpen: (actionsOpen) => set({ actionsOpen }),
+  setRankingsOpen: (rankingsOpen) => set({ rankingsOpen }),
   setLoading: (loadingMessage) => set({ loadingMessage }),
   setError: (error) => set({ status: 'error', error }),
   setReady: (countries) =>
