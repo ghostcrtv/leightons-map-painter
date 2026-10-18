@@ -2,8 +2,8 @@
 
 ## Current phase
 
-**Phase 3: Country statistics — complete (waiting for iPad testing).**
-Next up: **Phase 4: Battles** (attacker vs defender, results, conquest choices).
+**Phase 4 (part 1): Simulations — complete (waiting for iPad testing).**
+Next up: more simulation types, then **Phase 5: Land expansion**.
 
 ## Completed
 
@@ -45,11 +45,24 @@ Next up: **Phase 4: Battles** (attacker vs defender, results, conquest choices).
 - Actions menu (wheel button, left of Settings) with spin wheels: random Country,
   War / Land / Erode, Tiny…All, and 8 directions. New wheels = one entry in `src/actions/wheels.ts`.
 
+### Phase 4 (part 1) — Simulations
+- Simulation menu (lightning button, left of Actions).
+- Conflict: pick two nations (or 🎲 Random; Random picks a touching/closest neighbour), see the
+  odds, press BATTLE. ~4.5 s show of missiles, explosions and smoke, then: peace (doves fly away,
+  nothing changes), a partial win (a natural-looking piece of land changes hands, size based on the
+  power gap + luck), or complete conquest (fireworks). Underdogs keep at least a 2% chance.
+- Auto battles: random neighbours fight again and again until Stop.
+- Natural disasters: 11 types (earthquake, volcano, tsunami, hurricane, tornado, flood, wildfire,
+  drought, blizzard, sandstorm, meteor), each with its own animation. Random picks a nation and a
+  disaster that fits its geography. Hit countries are weakened (lower battle power) and smoke rises
+  from them until reset.
+- Every result is one undoable action and is autosaved.
+
 ## Upcoming
 
 | Phase | What | Notes |
 |---|---|---|
-| 4 | Battles | Quick Battle, Full Invasion, Border Conflict, Custom; results and conquest choices |
+| 4 (part 2) | More simulations | Ideas: alliances, rebellions/independence, "Simulate 1 year" (many events in a row), battle history log |
 | 5 | Land expansion | Paint into water, coastline expansion, island creation, land removal |
 | 6 | Saving | IndexedDB save slots, rename/duplicate/delete, export/import files, versioned saves |
 | 7 | Deployment | GitHub + Cloudflare Pages, permanent web address, Home Screen |

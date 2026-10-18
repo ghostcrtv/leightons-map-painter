@@ -63,7 +63,8 @@ src/styles/app.css  all styles
 tests/              Vitest tests
 ```
 
-Also: `src/stats/` (ratings.ts pure + tested, csv.ts, session.ts), `src/actions/wheels.ts`.
+Also: `src/stats/` (ratings.ts pure + tested, csv.ts, session.ts), `src/actions/wheels.ts`,
+`src/sim/` (simulations), `src/territory/regions.ts` (neighbours, fronts, land bites).
 Planned folders (create when the phase starts): `src/battles/` (Phase 4), `src/storage/` (Phase 6),
 `src/simulation/` (future auto-simulation).
 
@@ -171,7 +172,41 @@ Original Earth + a list of actions = the current world. Files: `src/territory/`.
 - Selection outline: unchanged country = solid gold; changed = light-blue `REAL_BORDER` on the
   real border + striped gold ring around all owned land (`drawOwnedOutline`, offscreen mask).
 
-## Battle calculation system (design — Phase 4)
+## Simulations (built in Phase 4, part 1)
+
+Decision 2026‑10‑17 (Steve): simulation results change the map AUTOMATICALLY (Undo reverts);
+the wheels in the Actions menu stay for manual decisions.
+
+- `sim/conflict.ts` (pure, tested; all tuning in `CONFLICT`): peace chance 8–30% (likeliest when
+  evenly matched); win chance = logistic of the power gap (spread 9), clamped to ≥2% for the
+  underdog; conquest chance grows with the gap and shrinks against much bigger countries;
+  partial share = typical share for the gap × luck (0.5–1.5). Power used = Power Score ×
+  (1 − disaster weakness).
+- `sim/disasters.ts` (pure, tested): 11 disasters with `fits(place)` weights from simplified
+  geography (lat/lon of the label point via `world.invert`, coastal from the grid, ISO lists for
+  seismic/volcanic/tornado/desert/wildfire/flood areas). Severity 5–30%.
+- Territory actions: `battle {winner, loser, outcome, pieces}` — pieces are ordinary paint/fill
+  actions, so drawing, measuring, undo and saves just work (layers() flattens them);
+  `disaster {id, type, severity}` — no land change; `weakness(id)` sums disasters since the
+  last resetWorld / resetCountry(id), capped at 60%.
+- `planBattle` (Territory) + `regions.ts`: front = random equally-close loser cell next to the
+  winner; partial bite = a lumpy blob of 5–7 circles leaning into the loser's land, grown by
+  binary search until it covers the share's km². `piecesFor` turns cells into actions: whole
+  real country → fill; blob exact for that country → the blob circles; otherwise block circles
+  (or fill + give the rest back, whichever is smaller). Tiny losers (< 15 cells) are always
+  conquered whole.
+- `sim/effects.ts`: overlay canvas (`.fx-canvas`, pointer-events none) above the map; particles
+  anchored to world points + pixel offsets; soft colour sprites instead of canvas `filter`
+  (not in Safari 15); stops when idle, 30 fps when only smoke is left. Scenes may add scenes
+  during update (kept via a swap; an earlier version dropped them — keep it that way).
+- `sim/shows.ts`: battle (~2.7 s fight, climax, ~4.8 s total) and one show per disaster
+  (~3.8 s); `climax()` is when the map changes. `sim/runner.ts` orchestrates (camera via
+  `renderer.flyToBox`, result card data in the store) and keeps smoke over weakened countries.
+- UI: `SimulationDialog` (Conflict / Natural disaster setup), `SimHud` (banner, result card,
+  Stop auto battles). CSS gotcha: `.btn:active` uses `transform`, so never centre a `.btn` with
+  `transform: translateX(-50%)` (it jumps while pressed and the tap misses).
+
+## Battle calculation system (original design notes — Phase 4)
 
 - Ratings 1–100: attack, defense, resources (money), military.
   Comprehensive Power = round(attack·0.25 + defense·0.25 + resources·0.20 + military·0.30).
@@ -183,8 +218,7 @@ Original Earth + a list of actions = the current world. Files: `src/territory/`.
   defender strength = blend of defense, military, resources, plus terrain/home bonus; compare
   with a logistic curve plus seeded randomness so a 93 usually beats an 89 but not always.
   All factors documented in one config file and covered by tests.
-- Battles never auto-change borders. Player chooses: Conquer entire country / Paint captured
-  territory / No change / Simulate again.
+- (Superseded 2026‑10‑17: simulation results apply automatically; Undo reverts.)
 - Use a seeded random number generator so the future "Simulate 1 year" can be replayed.
 
 ## Save game structure (design — Phase 6)

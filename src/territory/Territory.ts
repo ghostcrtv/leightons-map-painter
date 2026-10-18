@@ -6,10 +6,13 @@
  * Keeping actions (not a copy of the map) makes undo/redo exact, keeps saves small,
  * and lets the original borders be restored at any time. Pure logic: no drawing here.
  *
- * Phase 4 (battles) adds a 'conquer' action; Phase 5 (land expansion) adds 'land'/'sea'.
+ * Simulations (Phase 4) add 'battle' (made of ordinary paint/fill pieces, so it draws, measures,
+ * undoes and saves like any other change) and 'disaster' (weakens a country until a reset).
+ * Phase 5 (land expansion) adds 'land'/'sea'.
  */
 import { emptyBBox, type BBox } from '../map/geometry';
 import { TerritoryGrid, type CountryStats, type GridDiff } from './TerritoryGrid';
+import { biteShape, cellCount, frontCell, piecesFor, type Piece } from './regions';
 
 /**
  * Circles are stored flat: [x, y, r, x, y, r, …] in world units.
@@ -22,7 +25,23 @@ export type Action =
   /** The whole of country `id` (its real borders) goes to `owner`, or back to itself if no owner. */
   | { kind: 'fill'; id: string; owner?: string }
   | { kind: 'resetCountry'; id: string }
-  | { kind: 'resetWorld' };
+  | { kind: 'resetWorld' }
+  /** A simulated conflict's result: `winner` took land from `loser` (all of it, or a part). */
+  | { kind: 'battle'; winner: string; loser: string; outcome: 'conquest' | 'partial'; pieces: Piece[] }
+  /** A natural disaster: the country is weakened by `severity` (0–1) until it is reset. */
+  | { kind: 'disaster'; id: string; type: string; severity: number };
+
+/** The most a country can be weakened by disasters (60%). */
+export const MAX_WEAKNESS = 0.6;
+
+/** A planned battle result, ready to apply (see planBattle). */
+export interface BattlePlan {
+  action: Extract<Action, { kind: 'battle' }>;
+  /** Where the attack lands (world units) and how big the area is. */
+  center: [number, number];
+  radius: number;
+  km2: number;
+}
 
 /** A drawable piece of the current world (consecutive strokes by one owner are merged). */
 export interface Layer {
@@ -224,6 +243,11 @@ export class Territory {
     this.run({ kind: 'resetWorld' });
   }
 
+  /** Apply a finished action (used by simulations). */
+  apply(action: Action) {
+    this.run(action);
+  }
+
   private run(action: Action) {
     this.stroke && this.cancelStroke();
     this.applied.push({ action, diff: this.applyToGrid(action) });
@@ -256,6 +280,17 @@ export class Territory {
       case 'resetWorld':
         g.resetAll(diff);
         break;
+      case 'battle':
+        for (const p of a.pieces) {
+          const d = this.applyToGrid(p);
+          diff.cells.push(...d.cells);
+          diff.old.push(...d.old);
+          diff.tiny.push(...d.tiny);
+          diff.tinyOld.push(...d.tinyOld);
+        }
+        break;
+      case 'disaster':
+        break; // no land changes: see weakness()
     }
     return diff;
   }
@@ -299,7 +334,8 @@ export class Territory {
     const c = this.layersCache;
     if (c && c.version === this.version && c.withStroke === withStroke) return c.layers;
     const layers: Layer[] = [];
-    const actions = this.applied.map((a) => a.action);
+    // Battles are drawn as the paint/fill pieces they are made of.
+    const actions = this.applied.flatMap((a) => (a.action.kind === 'battle' ? (a.action.pieces as Action[]) : [a.action]));
     let start = 0;
     actions.forEach((a, i) => {
       if (a.kind === 'resetWorld') start = i + 1;
@@ -374,6 +410,79 @@ export class Territory {
     return !!s && s.originalKm2 > 0 && s.currentKm2 <= s.originalKm2 * 0.001;
   }
 
+  // ------------------------------------------------------------ simulations
+
+  /** How weakened a country is by disasters (0 = not at all, up to MAX_WEAKNESS). Cleared by a reset. */
+  weakness(id: string): number {
+    return this.weaknessMap().get(id)?.amount ?? 0;
+  }
+
+  /** Disasters still weakening a country (newest last). */
+  disastersOf(id: string): { type: string; severity: number }[] {
+    return this.weaknessMap().get(id)?.hits ?? [];
+  }
+
+  /** Every weakened country. */
+  weakenedIds(): string[] {
+    return [...this.weaknessMap().keys()];
+  }
+
+  private weakCache: { version: number; map: Map<string, { amount: number; hits: { type: string; severity: number }[] }> } | null = null;
+
+  private weaknessMap() {
+    if (this.weakCache?.version === this.version) return this.weakCache.map;
+    const map = new Map<string, { amount: number; hits: { type: string; severity: number }[] }>();
+    for (const { action: a } of this.applied) {
+      if (a.kind === 'resetWorld') map.clear();
+      else if (a.kind === 'resetCountry') map.delete(a.id);
+      else if (a.kind === 'disaster') {
+        const e = map.get(a.id) ?? { amount: 0, hits: [] };
+        e.hits.push({ type: a.type, severity: a.severity });
+        e.amount = Math.min(MAX_WEAKNESS, e.amount + a.severity);
+        map.set(a.id, e);
+      }
+    }
+    this.weakCache = { version: this.version, map };
+    return map;
+  }
+
+  /** Country code in the grid (index + 1), or 0. */
+  codeOf(id: string): number {
+    return this.codeById.get(id) ?? 0;
+  }
+
+  idOf(code: number): string | null {
+    return this.idByCode[code] || null;
+  }
+
+  /**
+   * Work out the land change for a won conflict (without applying it).
+   * `share` = fraction of the loser's land taken (1 = conquer everything).
+   * A tiny loser can't be split, so any win takes all of it.
+   */
+  planBattle(winner: string, loser: string, share: number, rand: () => number = Math.random): BattlePlan | null {
+    const w = this.codeById.get(winner);
+    const l = this.codeById.get(loser);
+    if (!w || !l || w === l) return null;
+    const g = this.grid;
+    const loserKm2 = this.statsFor(loser)?.currentKm2 ?? 0;
+    if (loserKm2 <= 0) return null;
+    const ids = this.idByCode;
+    const front = frontCell(g, w, l, rand);
+    const center: [number, number] =
+      front !== null ? [((front % g.cols) + 0.5) * g.cell, (Math.floor(front / g.cols) + 0.5) * g.cell] : g.tinyPoint[l];
+    const all = share >= 1 || cellCount(g, l) < 15;
+    if (all) {
+      const cells: number[] = [];
+      for (let i = 0; i < g.current.length; i++) if (g.current[i] === l) cells.push(i);
+      const pieces = piecesFor(g, ids, cells, w, l);
+      return { action: { kind: 'battle', winner, loser, outcome: 'conquest', pieces }, center, radius: 0, km2: loserKm2 };
+    }
+    const bite = biteShape(g, l, center, loserKm2 * share, rand);
+    const pieces = piecesFor(g, ids, bite.cells, w, l, bite.circles);
+    return { action: { kind: 'battle', winner, loser, outcome: 'partial', pieces }, center: bite.center, radius: bite.radius, km2: bite.km2 };
+  }
+
   // ------------------------------------------------------------ saving
 
   toJSON(): SavedTerritory {
@@ -401,6 +510,17 @@ export function migrate(saved: SavedTerritory): SavedTerritory {
 }
 
 function isValidAction(a: Action, ids: Map<string, number>): boolean {
+  if (a && typeof a === 'object' && a.kind === 'battle') {
+    return (
+      ids.has(a.winner) &&
+      ids.has(a.loser) &&
+      Array.isArray(a.pieces) &&
+      a.pieces.every((p) => (p.kind === 'paint' || p.kind === 'fill') && isValidAction(p as Action, ids))
+    );
+  }
+  if (a && typeof a === 'object' && a.kind === 'disaster') {
+    return ids.has(a.id) && typeof a.type === 'string' && typeof a.severity === 'number' && a.severity >= 0 && a.severity <= 1;
+  }
   if (!a || typeof a !== 'object') return false;
   const okWithin = (w?: string) => w === undefined || ids.has(w);
   switch (a.kind) {

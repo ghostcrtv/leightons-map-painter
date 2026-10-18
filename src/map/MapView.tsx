@@ -8,6 +8,8 @@ import { FlagLibrary } from './flags';
 import { GestureController } from './gestures';
 import { MapRenderer } from './MapRenderer';
 import { loadDetail, loadWorld } from './world';
+import { Effects } from '../sim/effects';
+import { attachSimulation, syncSmolder } from '../sim/runner';
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -15,10 +17,12 @@ const BASE = import.meta.env.BASE_URL;
 export function MapView() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ringRef = useRef<HTMLDivElement>(null);
+  const fxRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current!;
     const ring = ringRef.current!;
+    const fxCanvas = fxRef.current!;
     const game = useGame.getState();
     /**
      * The brush outline is a small page element moved with CSS, not drawn on the map,
@@ -172,7 +176,27 @@ export function MapView() {
           }),
         );
 
-        const ro = new ResizeObserver(() => r.resize());
+        // Simulation effects (missiles, smoke, storms…) on a see-through layer above the map.
+        const fx = new Effects(fxCanvas, {
+          toScreen: (x, y) => r.toScreen(x, y),
+          toWorld: (x, y) => r.toWorld(x, y),
+          zoom: () => r.zoomRelative(),
+          shake: (dx, dy) => {
+            const tf = dx || dy ? `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)` : '';
+            canvas.style.transform = tf;
+            fxCanvas.style.transform = tf;
+          },
+        });
+        attachSimulation(r, fx);
+        cleanups.push(() => {
+          attachSimulation(null, null);
+          fx.destroy();
+        });
+
+        const ro = new ResizeObserver(() => {
+          r.resize();
+          fx.resize();
+        });
         ro.observe(canvas);
         cleanups.push(() => ro.disconnect());
 
@@ -183,7 +207,20 @@ export function MapView() {
         const startTerritory = () => {
           if (cancelled) return;
           try {
-            r.setTerritory(createTerritory(world));
+            const t = createTerritory(world);
+            r.setTerritory(t);
+            // Smoke rises from weakened countries; keep it in step with the map.
+            let smokeTimer = 0;
+            const unsub = t.subscribe(() => {
+              if (t.painting) return;
+              clearTimeout(smokeTimer);
+              smokeTimer = window.setTimeout(syncSmolder, 300);
+            });
+            cleanups.push(() => {
+              unsub();
+              clearTimeout(smokeTimer);
+            });
+            syncSmolder();
           } catch (e) {
             console.error('Territory painting could not start.', e);
           }
@@ -220,7 +257,7 @@ export function MapView() {
       const step = 120;
       const st = useGame.getState();
       // A window (Help, Settings, tour) is open: keys belong to it.
-      if (st.helpOpen || st.settingsOpen || st.tourOpen || st.actionsOpen || st.rankingsOpen) return;
+      if (st.helpOpen || st.settingsOpen || st.tourOpen || st.actionsOpen || st.rankingsOpen || st.simView) return;
       // Undo: Cmd/Ctrl+Z · Redo: Shift+Cmd/Ctrl+Z or Ctrl+Y
       if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'y')) {
         const redo = e.key === 'y' || e.shiftKey;
@@ -300,6 +337,7 @@ export function MapView() {
   return (
     <>
       <canvas ref={canvasRef} className="map-canvas" aria-label="World map" role="img" />
+      <canvas ref={fxRef} className="fx-canvas" aria-hidden />
       <div ref={ringRef} className="brush-ring" hidden aria-hidden />
     </>
   );

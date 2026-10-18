@@ -10,6 +10,8 @@ import { SettingsDialog } from './components/SettingsDialog';
 import { TOUR_SEEN_KEY, WelcomeTour } from './components/WelcomeTour';
 import { ActionsDialog } from './components/ActionsDialog';
 import { RankingsDialog } from './components/RankingsDialog';
+import { SimulationDialog } from './components/SimulationDialog';
+import { SimHud } from './components/SimHud';
 import { readSetting } from './utils/settings';
 
 export default function App() {
@@ -21,6 +23,7 @@ export default function App() {
   const tourOpen = useGame((s) => s.tourOpen);
   const actionsOpen = useGame((s) => s.actionsOpen);
   const rankingsOpen = useGame((s) => s.rankingsOpen);
+  const simView = useGame((s) => s.simView);
 
   // First visit: show the welcome tour once the map is ready.
   useEffect(() => {
@@ -36,6 +39,7 @@ export default function App() {
           <MapToolbar />
           <CountryPanel />
           <StatusBar />
+          <SimHud />
         </>
       )}
       {status !== 'ready' && (
@@ -61,6 +65,7 @@ export default function App() {
       {settingsOpen && <SettingsDialog />}
       {actionsOpen && <ActionsDialog />}
       {rankingsOpen && <RankingsDialog />}
+      {simView && <SimulationDialog />}
       {tourOpen && <WelcomeTour />}
     </div>
   );

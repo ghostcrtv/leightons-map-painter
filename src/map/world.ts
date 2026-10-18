@@ -88,6 +88,8 @@ export interface World {
   capitals: { id: string; name: string; x: number; y: number }[];
   /** Real-world area (km²) of one square of world units at a given height (y). */
   km2PerUnit2At(y: number): number;
+  /** World point → [longitude, latitude] (degrees). */
+  invert(x: number, y: number): [number, number] | null;
 }
 
 type CountriesTopo = Topology<{ countries: GeometryCollection<{ name: string }> }>;
@@ -215,6 +217,7 @@ export async function loadWorld(baseUrl: string, registry: CountryInfo[], capita
       return p ? [{ id: c.id, name: c.name, x: p[0], y: p[1] }] : [];
     }),
     km2PerUnit2At: makeAreaScale(projection, height),
+    invert: (x: number, y: number) => projection.invert?.([x, y]) ?? null,
   };
 }
 

@@ -324,16 +324,18 @@ export class MapRenderer {
 
   flyToCountry(id: string) {
     const c = this.world.byId.get(id);
-    if (!c) return;
-    const box = c.mainBox;
-    // Fit into the area not covered by panels.
+    if (c) this.flyToBox(c.mainBox);
+  }
+
+  /** Smoothly move the camera so `box` (world units) fills the space not covered by panels. */
+  flyToBox(box: BBox, maxZoom = 150, duration = 700) {
     const inner = {
       width: this.view.width - this.insets.left - this.insets.right,
       height: this.view.height - this.insets.top - this.insets.bottom,
     };
     let target = fitBox(box, inner, Math.max(40, Math.min(inner.width, inner.height) * 0.12), this.limits);
     // Don't zoom in absurdly far on micro-states; don't zoom *out* for huge ones.
-    target.scale = Math.min(target.scale, this.limits.minScale * 150);
+    target.scale = Math.min(target.scale, this.limits.minScale * maxZoom);
     const cx = (box.minX + box.maxX) / 2;
     const cy = (box.minY + box.maxY) / 2;
     target = {
@@ -341,7 +343,27 @@ export class MapRenderer {
       x: this.insets.left + inner.width / 2 - cx * target.scale,
       y: this.insets.top + inner.height / 2 - cy * target.scale,
     };
-    this.animateTo(this.constrained(target), 700);
+    this.animateTo(this.constrained(target), duration);
+  }
+
+  /** World point → screen point (CSS px). Used by the simulation effects layer. */
+  toScreen(x: number, y: number): [number, number] {
+    return worldToScreen(this.cam, x, y);
+  }
+
+  /** The main body of a country (biggest flag area), in world units. */
+  countryBox(id: string): BBox | null {
+    return this.world.byId.get(id)?.mainBox ?? null;
+  }
+
+  /** A good point inside a country (where its name goes). */
+  labelPoint(id: string): [number, number] | null {
+    return this.world.byId.get(id)?.labelPoint ?? null;
+  }
+
+  /** Longitude/latitude of a world point. */
+  lonLat(x: number, y: number): [number, number] | null {
+    return this.world.invert(x, y);
   }
 
   beginInteraction() {

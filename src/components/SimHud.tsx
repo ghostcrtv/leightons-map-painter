@@ -1,0 +1,157 @@
+import { useGame } from '../game/store';
+import { mapController } from '../game/mapController';
+import { shareWord } from '../sim/conflict';
+import { DISASTER_BY_ID } from '../sim/disasters';
+import { lastConflictPair, rerunDisaster, runConflict, runRandomConflict, stopAutoBattles } from '../sim/runner';
+import { severityWord } from '../sim/disasters';
+import { getTerritory } from '../territory/session';
+import { formatArea } from '../utils/format';
+import { IconClose } from './icons';
+
+function Flag({ id }: { id: string }) {
+  const c = useGame((s) => s.countryById.get(id));
+  const url = c ? mapController.flagUrl(c.flag) : null;
+  return url ? <img className="hud-flag" src={url} alt="" /> : null;
+}
+
+/** On-map simulation UI: the banner while a simulation plays, and the result card after. */
+export function SimHud() {
+  const banner = useGame((s) => s.simBanner);
+  const report = useGame((s) => s.simReport);
+  const auto = useGame((s) => s.simAuto);
+  const byId = useGame((s) => s.countryById);
+  const setReport = useGame((s) => s.setSimReport);
+  // Hide the result card while a window is open on top of the map.
+  const windowOpen = useGame((s) => !!s.simView || s.actionsOpen || s.rankingsOpen || s.helpOpen || s.settingsOpen || s.tourOpen);
+  useGame((s) => s.territoryVersion);
+  const name = (id?: string) => (id ? byId.get(id)?.name ?? id : '');
+  const t = getTerritory();
+  const canUndo = !!report && report.undoVersion !== null && t?.version === report.undoVersion;
+  const undo = () => {
+    mapController.undo();
+    setReport(null);
+  };
+
+  return (
+    <>
+      {banner && (
+        <div className="sim-banner" role="status" aria-live="polite">
+          {banner.kind === 'conflict' ? (
+            <>
+              <Flag id={banner.a} />
+              <strong>{name(banner.a)}</strong>
+              <span className="swords" aria-label="versus">
+                ⚔️
+              </span>
+              <strong>{name(banner.b)}</strong>
+              <Flag id={banner.b!} />
+            </>
+          ) : (
+            <>
+              <span className="hud-emoji">{DISASTER_BY_ID.get(banner.type!)?.emoji}</span>
+              <strong>
+                {DISASTER_BY_ID.get(banner.type!)?.name} {DISASTER_BY_ID.get(banner.type!)?.verb} {name(banner.a)}!
+              </strong>
+            </>
+          )}
+        </div>
+      )}
+      {auto && (
+        <button className="btn danger auto-stop" onClick={stopAutoBattles}>
+          ■ Stop auto battles
+        </button>
+      )}
+      {report && !banner && !windowOpen && (
+        <div className={`sim-report ${report.kind === 'conflict' ? report.outcome : 'disaster'}`} role="status" aria-live="polite">
+          <button className="icon-btn small report-close" aria-label="Close" onClick={() => setReport(null)}>
+            <IconClose width={18} height={18} />
+          </button>
+          {report.kind === 'conflict' ? (
+            <>
+              {report.outcome === 'peace' ? (
+                <>
+                  <h3>🕊️ Peace deal!</h3>
+                  <p>
+                    {name(report.a)} and {name(report.b)} agreed to stop fighting. No land changed.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h3>
+                    {report.upset ? '😱 Upset! ' : report.outcome === 'conquest' ? '🏆 ' : '🚩 '}
+                    {report.outcome === 'conquest'
+                      ? `${name(report.winner)} conquers ${name(report.loser)}!`
+                      : `${name(report.winner)} wins!`}
+                  </h3>
+                  <p>
+                    <Flag id={report.winner!} />
+                    {report.outcome === 'conquest' ? (
+                      <>
+                        All of {name(report.loser)}’s land ({formatArea(report.km2)}) now belongs to {name(report.winner)}.
+                      </>
+                    ) : (
+                      <>
+                        Took a <b>{shareWord(report.share)}</b> piece of {name(report.loser)}: {formatArea(report.km2)} (
+                        {Math.max(1, Math.round(report.share * 100))}% of its land).
+                      </>
+                    )}
+                  </p>
+                </>
+              )}
+              <p className="odds-line">
+                Chances were: {name(report.a)} {Math.round(report.odds.aWins * 100)}% · peace {Math.round(report.odds.peace * 100)}% ·{' '}
+                {name(report.b)} {Math.round(report.odds.bWins * 100)}%
+              </p>
+              {!auto && (
+                <div className="report-buttons">
+                  <button
+                    className="btn primary"
+                    onClick={() => {
+                      const p = lastConflictPair();
+                      if (p) runConflict(p.a, p.b);
+                    }}
+                  >
+                    ⚔️ Again
+                  </button>
+                  <button className="btn secondary" onClick={() => runRandomConflict()}>
+                    🎲 Random battle
+                  </button>
+                  {canUndo && (
+                    <button className="btn secondary" onClick={undo}>
+                      Undo
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <h3>
+                {DISASTER_BY_ID.get(report.type)?.emoji} {severityWord(report.severity)} {DISASTER_BY_ID.get(report.type)?.name.toLowerCase()} in{' '}
+                {name(report.id)}!
+              </h3>
+              <p>
+                <Flag id={report.id} />
+                {name(report.id)} is weakened: battle power {Math.round(report.powerBefore)} → <b>{Math.round(report.powerAfter)}</b>. The
+                smoke stays until you reset it.
+              </p>
+              <div className="report-buttons">
+                <button className="btn primary" onClick={() => rerunDisaster()}>
+                  🌪️ Another one
+                </button>
+                <button className="btn secondary" onClick={() => useGame.getState().setSimView('disaster')}>
+                  Choose…
+                </button>
+                {canUndo && (
+                  <button className="btn secondary" onClick={undo}>
+                    Undo
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </>
+  );
+}

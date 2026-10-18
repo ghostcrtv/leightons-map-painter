@@ -3,10 +3,13 @@ import { useGame } from '../game/store';
 import { getStats } from '../stats/session';
 import { RATING_KEYS, RATING_LABELS, type RatingKey } from '../stats/ratings';
 import { IconMinus, IconPlus } from './icons';
+import { getTerritory } from '../territory/session';
+import { DISASTER_BY_ID } from '../sim/disasters';
 
 /** The country card's Power section: Power Score, rank and the four ratings (editable). */
 export function PowerCard({ id, editing, setEditing }: { id: string; editing: boolean; setEditing: (v: boolean) => void }) {
   useGame((s) => s.statsVersion);
+  useGame((s) => s.territoryVersion);
   const setRankingsOpen = useGame((s) => s.setRankingsOpen);
   const total = useGame((s) => s.countries.length);
   const book = getStats();
@@ -36,6 +39,7 @@ export function PowerCard({ id, editing, setEditing }: { id: string; editing: bo
           <small>{book.isEdited(id) ? 'Edited ratings' : 'Game estimate, not official'}</small>
         </p>
       </div>
+      <WeakNote id={id} power={power} />
       <div className="ratings">
         {RATING_KEYS.map((k) => (
           <div key={k} className="rating">
@@ -91,5 +95,20 @@ export function PowerCard({ id, editing, setEditing }: { id: string; editing: bo
         </div>
       )}
     </section>
+  );
+}
+
+/** Disasters still weakening this country (smoke on the map), and its lower battle power. */
+function WeakNote({ id, power }: { id: string; power: number }) {
+  const t = getTerritory();
+  const weak = t?.weakness(id) ?? 0;
+  if (!t || weak <= 0) return null;
+  const hits = t.disastersOf(id);
+  const names = [...new Set(hits.map((h) => DISASTER_BY_ID.get(h.type)?.emoji ?? '💥'))].join(' ');
+  return (
+    <p className="weak-note">
+      <span aria-hidden>💨</span> Weakened by {hits.length === 1 ? 'a disaster' : `${hits.length} disasters`} {names}: fights at{' '}
+      <b>{Math.round(power * (1 - weak))}</b> (−{Math.round(weak * 100)}%) until reset.
+    </p>
   );
 }

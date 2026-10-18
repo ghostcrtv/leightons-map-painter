@@ -68,7 +68,7 @@ export class TerritoryGrid {
   readonly realKm2: Float64Array;
   /** Countries too small for the grid: their single point's owner, by code (0 = not tiny). */
   readonly tinyOwner: Uint16Array;
-  private tinyPoint: [number, number][];
+  readonly tinyPoint: [number, number][];
   readonly count: number;
   /**
    * Running totals, kept up to date cell by cell so measuring is instant:

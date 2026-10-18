@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.0 — 2026-10-17 — Simulations: conflicts and natural disasters
+
+- New: Simulation menu (lightning button, left of Actions).
+- New: Conflict — two nations (or Random + a neighbour) fight in a short animated battle
+  (missiles, explosions, smoke). Results: peace (doves), a piece of land taken, or complete
+  conquest (fireworks), decided by Power Scores plus luck. Odds shown before each battle.
+- New: Auto battles — random neighbours keep fighting until you press Stop.
+- New: 11 natural disasters with their own animations; "Random disaster" picks a nation and a
+  disaster that fits the place. Hit countries are weakened (fight at lower power) and smoke
+  rises from them until they (or the whole map) are reset.
+- Every simulation result can be undone and is kept after a reload.
+
 ## 0.5.0 — 2026-10-17 — Phase 3: Country statistics + Action wheels
 
 - New: every country has Attack, Defense, Money and Military ratings and a Power Score

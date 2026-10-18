@@ -5,6 +5,7 @@
  * Future phases add their own slices here (territory edits, stats, battles, saves).
  */
 import { create } from 'zustand';
+import type { SimBanner, SimReport, SimView } from '../sim/types';
 import type { CountryInfo } from '../data/countries';
 import { readSetting, writeSetting } from '../utils/settings';
 
@@ -39,6 +40,14 @@ interface GameState {
   /** Which pop-up window is open from the Actions menu (null = none). */
   actionsOpen: boolean;
   rankingsOpen: boolean;
+  /** Simulation menu: which page is open (null = closed). */
+  simView: SimView | null;
+  /** A simulation is playing on the map: the banner text. */
+  simBanner: SimBanner | null;
+  /** The last simulation's result card (null = hidden). */
+  simReport: SimReport | null;
+  /** Auto battles: keep running random conflicts. */
+  simAuto: boolean;
   selectedId: string | null;
   panelCollapsed: boolean;
 
@@ -57,6 +66,10 @@ interface GameState {
   statsChanged(): void;
   setActionsOpen(v: boolean): void;
   setRankingsOpen(v: boolean): void;
+  setSimView(v: SimView | null): void;
+  setSimBanner(v: SimBanner | null): void;
+  setSimReport(v: SimReport | null): void;
+  setSimAuto(v: boolean): void;
   setLoading(message: string): void;
   setError(message: string): void;
   setReady(countries: CountryInfo[]): void;
@@ -88,6 +101,10 @@ export const useGame = create<GameState>((set) => ({
   statsVersion: 0,
   actionsOpen: false,
   rankingsOpen: false,
+  simView: null,
+  simBanner: null,
+  simReport: null,
+  simAuto: false,
   selectedId: null,
   panelCollapsed: false,
 
@@ -109,6 +126,10 @@ export const useGame = create<GameState>((set) => ({
   statsChanged: () => set((s) => ({ statsVersion: s.statsVersion + 1 })),
   setActionsOpen: (actionsOpen) => set({ actionsOpen }),
   setRankingsOpen: (rankingsOpen) => set({ rankingsOpen }),
+  setSimView: (simView) => set({ simView }),
+  setSimBanner: (simBanner) => set({ simBanner }),
+  setSimReport: (simReport) => set({ simReport }),
+  setSimAuto: (simAuto) => set({ simAuto }),
   setLoading: (loadingMessage) => set({ loadingMessage }),
   setError: (error) => set({ status: 'error', error }),
   setReady: (countries) =>
