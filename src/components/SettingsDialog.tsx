@@ -17,6 +17,12 @@ export function SettingsDialog() {
       <Toggle label="Show borders" checked={s.showBorders} onChange={s.setShowBorders} />
       <Toggle label="Day and night" hint="Night slowly moves around the world; cities light up" checked={s.showNight} onChange={s.setShowNight} />
       <Toggle
+        label="🤪 Crazy disasters"
+        hint="Zombies, aliens, dragons, giant spiders and more can strike"
+        checked={s.crazyDisasters}
+        onChange={s.setCrazyDisasters}
+      />
+      <Toggle
         label="Sound effects"
         hint="Battles, disasters, wheels and the paint bucket"
         checked={soundOn}

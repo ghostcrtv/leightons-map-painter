@@ -35,7 +35,7 @@ paste code into files.
 | Boundaries | Natural Earth 1:10m admin-0 via `world-atlas` | Public domain, 255 countries/territories |
 | Flags | `flag-icons` SVGs → PNG at build time | MIT licence, 4:3 flags |
 | Tests | Vitest (`tests/`) | Runs with `npm test` |
-| Hosting | GitHub Pages workflow ready (`.github/workflows/deploy.yml`); needs the family's GitHub account | Free, no card |
+| Hosting | GitHub Pages (`.github/workflows/deploy.yml`), live at https://ghostcrtv.github.io/leightons-map-painter/ — every push to main publishes | Free, no card |
 | Saves | IndexedDB saved worlds + backup files (`src/worlds/`) | Done |
 | Offline | Service worker generated at build (`vite.config.ts` → `dist/sw.js`, template `scripts/sw-template.js`) | Done |
 
@@ -258,6 +258,17 @@ the wheels in the Actions menu stay for manual decisions.
 - **Map picture**: `game/snapshot.ts` + `utils/files.ts sharePicture` (Share sheet on iPad).
 - Data fix: the Maldives area (inside-out polygons) — `prepare-data.mjs` now measures polygon
   by polygon (`realArea`); a test stops any country exceeding Russia.
+
+## Crazy disasters and the secret (src/sim/crazy.ts)
+
+- Crazy disasters are normal `DisasterDef`s with `crazy: true` (disasters.ts), off unless the
+  setting `crazyDisasters` is on (store). `likelyDisasters` never lists them; `pickDisaster(p, rand,
+  crazy)` makes ~`CRAZY_CHANCE` of random ones crazy; `runDisaster(id, 'crazy')` picks one.
+  Animations live in `playCrazy` (called from `playDisaster`'s default case); creatures are emoji
+  drawn from cached canvases (`drawEmoji`) — fast in Safari, no image files.
+- SECRET (don't put it in Help or the UI): typing "titanic" in the country search plays
+  `playTitanic()` (runner.ts) → `TitanicScene`: Southampton → Cherbourg → Queenstown → the real
+  collision point (41.73 N, 49.95 W) using `renderer.fromLonLat`. Nothing is saved or left on the map.
 
 ## Sound (src/audio/sound.ts)
 

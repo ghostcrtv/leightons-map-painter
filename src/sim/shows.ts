@@ -8,6 +8,7 @@ import {
 } from './effects';
 import { DISASTER_SOUND, sound } from '../audio/sound';
 import type { ConflictOutcome } from './conflict';
+import { playCrazy } from './crazy';
 
 export interface BattleShow {
   /** Points on each side's land near the fighting (world units). */
@@ -127,6 +128,8 @@ export interface DisasterShow {
   R: number;
   /** Unit vector from the land toward the nearest sea (tsunamis). */
   seaDir: [number, number] | null;
+  /** A point out at sea near the country (world), if there is one. */
+  seaAt?: W | null;
   climax: () => void;
   done: () => void;
 }
@@ -289,7 +292,9 @@ export function playDisaster(fx: Effects, s: DisasterShow) {
       break;
     }
     default: {
-      tl.every(0, 2.4, 0.1, () => fx.explosion(any(), 0.7));
+      const at = playCrazy(fx, tl, s);
+      if (at !== null) climaxAt = at;
+      else tl.every(0, 2.4, 0.1, () => fx.explosion(any(), 0.7));
     }
   }
   if (climaxAt < 99) tl.at(climaxAt, s.climax);

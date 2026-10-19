@@ -27,6 +27,8 @@ export interface DisasterDef {
   severity: [number, number];
   /** How likely this disaster is in a place (0 = never picked by "Random"). */
   fits: (p: PlaceFacts) => number;
+  /** A "crazy" disaster: only happens when Crazy disasters are turned on in Settings. */
+  crazy?: boolean;
 }
 
 const set = (s: string) => new Set(s.split(/\s+/).filter(Boolean));
@@ -110,22 +112,46 @@ export const DISASTERS: DisasterDef[] = [
     id: 'meteor', name: 'Meteor strike', emoji: '☄️', verb: 'smashes into', severity: [0.1, 0.4],
     fits: () => 0.12, // rare, can happen anywhere
   },
+  // ---- Crazy disasters (Settings → Crazy disasters). Cartoon fun; they weaken like the others.
+  { id: 'zombies', name: 'Zombie outbreak', emoji: '🧟', verb: 'shambles into', severity: [0.06, 0.34], fits: () => 1, crazy: true },
+  { id: 'aliens', name: 'Alien invasion', emoji: '👽', verb: 'lands in', severity: [0.06, 0.34], fits: () => 1, crazy: true },
+  { id: 'nuke', name: 'Nuclear bomb', emoji: '☢️', verb: 'explodes over', severity: [0.2, 0.45], fits: () => 0.6, crazy: true },
+  { id: 'spiders', name: 'Giant spider swarm', emoji: '🕷️', verb: 'crawls all over', severity: [0.04, 0.26], fits: () => 1, crazy: true },
+  { id: 'kraken', name: 'Kraken attack', emoji: '🐙', verb: 'rises up at', severity: [0.05, 0.3], fits: (p) => (p.coastal ? 1 : 0), crazy: true },
+  { id: 'robots', name: 'Robot uprising', emoji: '🤖', verb: 'takes over', severity: [0.06, 0.32], fits: () => 1, crazy: true },
+  { id: 'dinosaurs', name: 'Dinosaur stampede', emoji: '🦖', verb: 'stomps through', severity: [0.05, 0.3], fits: () => 1, crazy: true },
+  { id: 'spaghetti', name: 'Spaghetti storm', emoji: '🍝', verb: 'rains down on', severity: [0.02, 0.14], fits: () => 1, crazy: true },
+  { id: 'dragon', name: 'Dragon attack', emoji: '🐉', verb: 'breathes fire on', severity: [0.06, 0.34], fits: () => 1, crazy: true },
+  { id: 'blackhole', name: 'Mini black hole', emoji: '🕳️', verb: 'swallows part of', severity: [0.12, 0.42], fits: () => 0.5, crazy: true },
 ];
+
+export const NORMAL_DISASTERS = DISASTERS.filter((d) => !d.crazy);
+export const CRAZY_DISASTERS = DISASTERS.filter((d) => d.crazy);
+
+/** With crazy disasters on, about this share of random disasters are crazy ones. */
+export const CRAZY_CHANCE = 0.3;
 
 export const DISASTER_BY_ID = new Map(DISASTERS.map((d) => [d.id, d]));
 
 /** Disasters that can happen here, likeliest first. */
 export function likelyDisasters(p: PlaceFacts): { def: DisasterDef; weight: number }[] {
-  return DISASTERS.map((def) => ({ def, weight: def.fits(p) }))
+  return NORMAL_DISASTERS.map((def) => ({ def, weight: def.fits(p) }))
     .filter((x) => x.weight > 0)
     .sort((a, b) => b.weight - a.weight);
 }
 
 /** A disaster that fits the place (random, weighted). */
-export function pickDisaster(p: PlaceFacts, rand: Rand): DisasterDef {
+export function pickDisaster(p: PlaceFacts, rand: Rand, crazy = false): DisasterDef {
+  if (crazy && rand() < CRAZY_CHANCE) return pickCrazy(p, rand);
   const list = likelyDisasters(p);
   if (!list.length) return DISASTER_BY_ID.get('meteor')!;
   return pickWeighted(list.map((x) => ({ item: x.def, weight: x.weight })), rand);
+}
+
+/** A random crazy disaster that can happen here (the kraken needs a coast). */
+export function pickCrazy(p: PlaceFacts, rand: Rand): DisasterDef {
+  const list = CRAZY_DISASTERS.map((def) => ({ item: def, weight: def.fits(p) })).filter((x) => x.weight > 0);
+  return pickWeighted(list, rand);
 }
 
 /** How bad this one is: usually light or moderate, sometimes severe, rarely extreme. */

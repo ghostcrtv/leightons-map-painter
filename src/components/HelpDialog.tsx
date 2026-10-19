@@ -46,6 +46,8 @@ const TOPICS: Topic[] = [
   { title: 'Leaderboard and badges', ready: true, text: 'Actions → Leaderboard shows the biggest, strongest and most winning countries. Badges are prizes you unlock by playing.' },
   { title: 'Pictures and day/night', ready: true, text: 'Actions → Picture of the map saves or shares a picture with your world’s name. Settings → Day and night makes night move around the world.' },
   { title: 'Play without internet', ready: true, text: 'After the game has opened once, it works offline too (when it’s on its own web address).' },
+  { title: 'Country buttons', ready: true, text: 'Tap a country, then: Attack (it attacks a neighbour; change who in the window), Defend (a neighbour attacks it), Expand Land (new land along its coast), Disaster, or Rebel! when it has lost land it can take back.' },
+  { title: 'Crazy disasters', ready: true, text: 'Turn on Crazy disasters in Settings (the gear) for zombies, aliens, a dragon, giant spiders, a kraken, robots, dinosaurs, a spaghetti storm, a nuclear bomb and a mini black hole. Pick one in Natural disaster, or tap Crazy one!' },
   { title: 'Reset the map', ready: true, text: 'Tap a country and choose Reset borders to put just that country back. To reset everything, open Settings (the gear) and tap Reset whole world.' },
 ];
 

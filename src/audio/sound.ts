@@ -13,7 +13,8 @@ import { readSetting, writeSetting } from '../utils/settings';
 
 type Name =
   | 'launch' | 'boom' | 'bigBoom' | 'chirp' | 'pop' | 'tick' | 'win' | 'peace' | 'sting' | 'fill'
-  | 'splash' | 'rumble' | 'wind' | 'rain' | 'wave' | 'fire' | 'whistle' | 'blizzard' | 'sand' | 'heat';
+  | 'splash' | 'rumble' | 'wind' | 'rain' | 'wave' | 'fire' | 'whistle' | 'blizzard' | 'sand' | 'heat'
+  | 'groan' | 'roar' | 'laser' | 'ufo' | 'skitter' | 'whoosh' | 'crash' | 'horn';
 
 class SoundEngine {
   private ctx: AudioContext | null = null;
@@ -108,7 +109,7 @@ class SoundEngine {
     this.start();
     const ctx = this.ctx;
     if (!ctx || !this.master || ctx.state !== 'running') return;
-    const gap: Partial<Record<Name, number>> = { boom: 70, launch: 90, chirp: 120, pop: 80, tick: 30 };
+    const gap: Partial<Record<Name, number>> = { boom: 70, launch: 90, chirp: 120, pop: 80, tick: 30, laser: 110 };
     const now = performance.now();
     if ((now - (this.last.get(name) ?? -1e9)) < (gap[name] ?? 0)) return;
     this.last.set(name, now);
@@ -243,6 +244,44 @@ class SoundEngine {
         this.tone(ctx, t, { type: 'sine', f0: 1900, f1: 250, peak: 0.12, attack: 0.05, release: 0.9 });
         this.noiseHit(ctx, t, { type: 'bandpass', f0: 3000, f1: 400, q: 2, peak: 0.15, attack: 0.1, release: 0.85 });
         break;
+      // ---- crazy disasters
+      case 'groan': // zombie moan: two wobbly low voices
+        this.tone(ctx, t, { type: 'sawtooth', f0: 140, f1: 95, peak: 0.07, attack: 0.25, hold: 0.6, release: 0.6 });
+        this.tone(ctx, t + 0.15, { type: 'triangle', f0: 180, f1: 120, peak: 0.08, attack: 0.3, hold: 0.5, release: 0.6 });
+        this.noiseHit(ctx, t, { type: 'bandpass', f0: 500, f1: 300, q: 4, peak: 0.12, attack: 0.3, hold: 0.5, release: 0.6 });
+        break;
+      case 'roar':
+        this.noiseHit(ctx, t, { type: 'bandpass', f0: 420, f1: 160, q: 2, peak: 0.45, attack: 0.08, hold: 0.6, release: 0.7 });
+        this.tone(ctx, t, { type: 'sawtooth', f0: 95, f1: 55, peak: 0.12, attack: 0.08, hold: 0.6, release: 0.6 });
+        break;
+      case 'laser': // pew!
+        this.tone(ctx, t, { type: 'square', f0: 1700, f1: 220, peak: 0.05, attack: 0.002, release: 0.17 });
+        break;
+      case 'ufo': // warbling space wobble
+        for (let i = 0; i < 12; i++) {
+          this.tone(ctx, t + i * 0.2, { type: 'sine', f0: i % 2 ? 900 : 520, f1: i % 2 ? 520 : 900, peak: 0.07, attack: 0.02, release: 0.18 });
+        }
+        break;
+      case 'skitter': // lots of tiny legs
+        for (let i = 0; i < 70; i++) {
+          this.noiseHit(ctx, t + Math.random() * 3, { type: 'highpass', f0: 3500 + Math.random() * 3000, peak: 0.04 + Math.random() * 0.04, attack: 0.001, release: 0.015 });
+        }
+        break;
+      case 'whoosh': // getting sucked into a black hole
+        this.noiseHit(ctx, t, { type: 'bandpass', f0: 2400, f1: 140, q: 3, peak: 0.35, attack: 1.2, hold: 0.6, release: 0.9 });
+        this.tone(ctx, t, { type: 'sine', f0: 260, f1: 35, peak: 0.25, attack: 1.0, hold: 0.8, release: 0.8 });
+        break;
+      case 'crash': // ship meets iceberg: crunch, scrape and a creak
+        this.noiseHit(ctx, t, { type: 'lowpass', f0: 1800, f1: 120, peak: 0.6, attack: 0.005, hold: 0.15, release: 0.9 });
+        this.noiseHit(ctx, t + 0.05, { type: 'bandpass', f0: 1200, f1: 350, q: 6, peak: 0.25, attack: 0.05, hold: 0.5, release: 0.6 });
+        this.tone(ctx, t + 0.2, { type: 'triangle', f0: 260, f1: 110, peak: 0.1, attack: 0.1, hold: 0.4, release: 0.9 });
+        this.tone(ctx, t, { type: 'sine', f0: 80, f1: 35, peak: 0.45, attack: 0.005, release: 0.6 });
+        break;
+      case 'horn': // a deep ship's horn
+        this.tone(ctx, t, { type: 'sawtooth', f0: 98, peak: 0.06, attack: 0.08, hold: 0.9, release: 0.4 });
+        this.tone(ctx, t, { type: 'sawtooth', f0: 147, peak: 0.045, attack: 0.08, hold: 0.9, release: 0.4 });
+        this.tone(ctx, t, { type: 'sine', f0: 49, peak: 0.12, attack: 0.08, hold: 0.9, release: 0.4 });
+        break;
     }
   }
 }
@@ -262,4 +301,14 @@ export const DISASTER_SOUND: Record<string, Name[]> = {
   blizzard: ['blizzard'],
   sandstorm: ['sand'],
   meteor: ['whistle'],
+  zombies: ['groan'],
+  aliens: ['ufo'],
+  nuke: ['whistle'],
+  spiders: ['skitter'],
+  kraken: ['wave', 'splash'],
+  robots: ['rumble'],
+  dinosaurs: ['rumble'],
+  spaghetti: ['rain', 'pop'],
+  dragon: ['fire'],
+  blackhole: ['whoosh'],
 };

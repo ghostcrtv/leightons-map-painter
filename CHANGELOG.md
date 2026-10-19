@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.0 — 2026-10-18 — Country buttons, crazy disasters and a secret
+
+- New: the country panel's Attack, Defend and Expand Land buttons work (no more "Soon"):
+  Attack/Defend open Conflict with both sides filled in (`conflictPreset`), Expand Land runs
+  coast growth (shows "No coast" for landlocked countries). Added Disaster and (when possible) Rebel! buttons.
+- New: Crazy disasters (Settings, off by default): zombies, aliens, nuclear bomb, giant spiders,
+  kraken (coasts only), robots, dinosaurs, spaghetti storm, dragon, mini black hole. Their own
+  animations (`src/sim/crazy.ts`, emoji sprites) and synthesised sounds. With the setting on,
+  ~30% of random disasters are crazy; "🤪 Crazy one!" button; never listed as "likely here".
+- New: a secret in the search box (not in Help).
+- Map: `MapRenderer.fromLonLat` (forward projection); `regions.seaPoint` (a point out at sea).
+- Tests: crazy disaster rules (`tests/crazy.test.ts`).
+
 ## 1.0.3 — 2026-10-18 — About and copyright
 
 - New: "About" fine print and copyright (© 2026 Leighton R.) at the very bottom of Help.

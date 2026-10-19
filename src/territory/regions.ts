@@ -257,6 +257,29 @@ export function seaDirection(g: TerritoryGrid, x: number, y: number, maxCells = 
   return null;
 }
 
+/**
+ * A point out at sea: walk from (x, y) in `dir` until the water starts, then go a bit
+ * further while it stays water (up to `extraCells`). World units; null if no sea that way.
+ */
+export function seaPoint(g: TerritoryGrid, x: number, y: number, dir: [number, number], extraCells = 14): [number, number] | null {
+  const at = (k: number) => {
+    const c = Math.round(x / g.cell + dir[0] * k);
+    const r = Math.round(y / g.cell + dir[1] * k);
+    if (r < 0 || r >= g.rows || c < 0 || c >= g.cols) return -1;
+    return g.current[r * g.cols + c];
+  };
+  let k = 1;
+  while (k < 400 && at(k) !== WATER) {
+    if (at(k) === -1) return null;
+    k++;
+  }
+  if (k >= 400) return null;
+  let open = 0;
+  while (open < extraCells && at(k + open + 1) === WATER) open++;
+  const s = k + open * 0.7;
+  return [x + dir[0] * s * g.cell, y + dir[1] * s * g.cell];
+}
+
 // ---------------------------------------------------------------- land changes
 
 /**

@@ -90,6 +90,8 @@ export interface World {
   km2PerUnit2At(y: number): number;
   /** World point → [longitude, latitude] (degrees). */
   invert(x: number, y: number): [number, number] | null;
+  /** [longitude, latitude] (degrees) → world point. */
+  project(lon: number, lat: number): [number, number] | null;
 }
 
 type CountriesTopo = Topology<{ countries: GeometryCollection<{ name: string }> }>;
@@ -218,6 +220,7 @@ export async function loadWorld(baseUrl: string, registry: CountryInfo[], capita
     }),
     km2PerUnit2At: makeAreaScale(projection, height),
     invert: (x: number, y: number) => projection.invert?.([x, y]) ?? null,
+    project: (lon: number, lat: number) => projection([lon, lat]) ?? null,
   };
 }
 

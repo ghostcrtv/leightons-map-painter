@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../game/store';
 import { mapController } from '../game/mapController';
-import { DISASTERS } from '../sim/disasters';
+import { CRAZY_DISASTERS, NORMAL_DISASTERS } from '../sim/disasters';
 import {
   battlePower, likelyFor, oddsFor, playable, playableIds, randomNation, randomOpponent, rebels, runCoastGrowth, runConflict, runDisaster,
   runRebellion, runSeaRise, setAlliance, simulateYear, startAutoBattles, startWorldWar, strengthOf,
@@ -146,8 +146,14 @@ function ConflictSetup() {
   const countryById = useGame((s) => s.countryById);
   useGame((s) => s.statsVersion);
   useGame((s) => s.territoryVersion);
-  const [a, setA] = useState(() => (selectedId && playable(selectedId) ? selectedId : ''));
-  const [b, setB] = useState(() => (selectedId && playable(selectedId) ? randomOpponent(selectedId) ?? '' : ''));
+  // Attack / Defend in the country panel choose both sides; otherwise start from the tapped country.
+  const [preset] = useState(() => {
+    const p = useGame.getState().conflictPreset;
+    useGame.getState().setConflictPreset(null);
+    return p;
+  });
+  const [a, setA] = useState(() => preset?.a ?? (selectedId && playable(selectedId) ? selectedId : ''));
+  const [b, setB] = useState(() => preset?.b ?? (selectedId && playable(selectedId) ? randomOpponent(selectedId) ?? '' : ''));
 
   const chooseA = (v: string) => {
     if (v === RANDOM) {
@@ -249,6 +255,7 @@ function DisasterSetup() {
   const selectedId = useGame((s) => s.selectedId);
   const [id, setId] = useState(() => (selectedId && playable(selectedId) ? selectedId : ''));
   const [type, setType] = useState('');
+  const crazy = useGame((s) => s.crazyDisasters);
   const likely = useMemo(() => (id ? likelyFor(id).slice(0, 5) : []), [id]);
 
   const chooseNation = (v: string) => setId(v === RANDOM ? randomNation() ?? '' : v);
@@ -261,11 +268,20 @@ function DisasterSetup() {
           <span className="field-label">Disaster</span>
           <select id="dis-type" value={type} onChange={(e) => setType(e.target.value)}>
             <option value="">🎲 Random (one that fits the place)</option>
-            {DISASTERS.map((d) => (
+            {NORMAL_DISASTERS.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.emoji} {d.name}
               </option>
             ))}
+            {crazy && (
+              <optgroup label="🤪 Crazy disasters">
+                {CRAZY_DISASTERS.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.emoji} {d.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
           {likely.length > 0 && (
             <span className="likely">
@@ -286,10 +302,16 @@ function DisasterSetup() {
         <button className="btn secondary" onClick={() => runDisaster()}>
           🎲 Random disaster
         </button>
+        {crazy && (
+          <button className="btn secondary" onClick={() => runDisaster(id || undefined, 'crazy')}>
+            🤪 Crazy one!
+          </button>
+        )}
       </div>
       <p className="muted small-print">
         A country hit by a disaster is weakened (it fights at lower power): light disasters make a little smoke, extreme ones huge clouds. It stays weak until it wins a battle or you reset the
         whole map. Random disasters pick a nation and a disaster that really happens there.
+        {crazy ? ' Crazy disasters are on, so anything can happen!' : ' Want zombies and aliens? Turn on Crazy disasters in Settings.'}
       </p>
     </div>
   );

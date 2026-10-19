@@ -3,8 +3,7 @@
 ## Current phase
 
 **Big phase (saved worlds → App Store prep) — complete (waiting for iPad testing).**
-Waiting on the family: free hosting (needs a GitHub account, see docs/hosting.md) and the
-App Store decision (Apple Developer Program costs $99/year, see docs/app-store-guide.md).
+Hosting is live (GitHub Pages). Still waiting on the App Store decision (Apple Developer Program costs $99/year, see docs/app-store-guide.md).
 
 ## Completed
 
@@ -66,6 +65,12 @@ App Store decision (Apple Developer Program costs $99/year, see docs/app-store-g
 4. Leighton's game: create a country (flag designer), rename countries/capitals, leaderboard, 21 badges.
 5. Polish: tanks, jets, warships; day and night; picture of the map.
 6. Offline play, privacy page, hosting workflow, App Store guide, icon and screenshots.
+
+### After launch (2026-10-18)
+- Live on GitHub Pages: https://ghostcrtv.github.io/leightons-map-painter/ (publishes on every push to main).
+- Searchable country pickers, iPhone sound fix, About/copyright in Help.
+- Country panel: Attack, Defend, Expand Land, Disaster, Rebel! all work.
+- Crazy disasters (Settings) and a secret easter egg.
 
 ## Upcoming
 

@@ -10,17 +10,18 @@ import { emptyBBox, type BBox } from '../map/geometry';
 import { getStats } from '../stats/session';
 import { getTerritory } from '../territory/session';
 import type { Territory } from '../territory/Territory';
-import { cellCenter, frontCell, isCoastal, neighboursOf, sampleCells, seaDirection } from '../territory/regions';
+import { cellCenter, frontCell, isCoastal, neighboursOf, sampleCells, seaDirection, seaPoint } from '../territory/regions';
 import { conflictOdds, resolveConflict, type Fighter } from './conflict';
 import { allyBonus, battleMarks, roleStrength, withMarks, type Marks, type Role } from './strength';
 import { powerScore, type Ratings } from '../stats/ratings';
 import type { Action } from '../territory/Territory';
-import { DISASTER_BY_ID, likelyDisasters, pickDisaster, rollSeverity, type DisasterDef, type PlaceFacts } from './disasters';
+import { DISASTER_BY_ID, likelyDisasters, pickCrazy, pickDisaster, rollSeverity, type DisasterDef, type PlaceFacts } from './disasters';
 import type { Effects, W } from './effects';
 import { cryptoRand, pick, pickWeighted, type Rand } from './random';
 import { formatArea } from '../utils/format';
 import { unlock } from '../game/achievements';
 import { playBattle, playDisaster, playGrowth, playSeaRise } from './shows';
+import { TITANIC_ROUTE, TitanicScene } from './crazy';
 import { planCoastGrowth, planRebellion, planSeaRise, rebellionCandidates } from '../territory/events';
 import { buildHistory } from './history';
 import { sound } from '../audio/sound';
@@ -496,7 +497,7 @@ export function stopAutoBattles() {
 
 // ---------------------------------------------------------------- disasters
 
-/** `id`/`type` missing = random (a disaster that fits the place). */
+/** `id`/`type` missing = random (a disaster that fits the place). `type` 'crazy' = a random crazy one. */
 export async function runDisaster(id?: string, type?: string): Promise<void> {
   const t = getTerritory();
   if (busy || !t) return;
@@ -515,12 +516,14 @@ export async function runDisaster(id?: string, type?: string): Promise<void> {
 
 export function rerunDisaster() {
   const d = lastDisaster;
-  return d?.random ? runDisaster() : runDisaster(d?.id, d?.type);
+  return d?.random ? runDisaster(undefined, d.type === 'crazy' ? 'crazy' : undefined) : runDisaster(d?.id, d?.type);
 }
 
 export async function disaster(t: Territory, id: string, type?: string, mode: Mode = {}): Promise<SimReport> {
   const rand = cryptoRand;
-  const def = (type && DISASTER_BY_ID.get(type)) || pickDisaster(placeFacts(id), rand);
+  const def =
+    (type && DISASTER_BY_ID.get(type)) ||
+    (type === 'crazy' ? pickCrazy(placeFacts(id), rand) : pickDisaster(placeFacts(id), rand, game().crazyDisasters));
   const severity = rollSeverity(def, rand);
   const before = battlePower(id);
   const g = t.grid;
@@ -541,6 +544,7 @@ export async function disaster(t: Territory, id: string, type?: string, mode: Mo
     R = Math.max(45, Math.min(220, Math.min(Math.abs(x1 - x0), Math.abs(y1 - y0)) / 2));
   }
   const sea = seaDirection(g, center[0], center[1]);
+  const seaAt = sea ? seaPoint(g, center[0], center[1], sea) : null;
 
   let undoVersion: number | null = null;
   const apply = () => {
@@ -548,7 +552,7 @@ export async function disaster(t: Territory, id: string, type?: string, mode: Mo
     undoVersion = t.version;
     if (!mode.silent) sound.play('sting');
   };
-  await show(mode, (done) => playDisaster(fx!, { type: def.id, center, pts: pts.length ? pts : [center], R, seaDir: sea, climax: apply, done }), apply);
+  await show(mode, (done) => playDisaster(fx!, { type: def.id, center, pts: pts.length ? pts : [center], R, seaDir: sea, seaAt, climax: apply, done }), apply);
 
   return { kind: 'disaster', id, type: def.id, severity, powerBefore: before, powerAfter: battlePower(id), undoVersion };
 }
@@ -986,4 +990,28 @@ export function syncSmolder() {
     for (const p of (samples.get(codes[i]) ?? []).slice(0, extra)) points.push({ x: p[0], y: p[1], amount: amount * 0.8 });
   });
   fx.setSmolder(points);
+}
+
+// ---------------------------------------------------------------- shh… a secret
+
+/**
+ * Searching "Titanic" plays the ship's voyage from Southampton to the iceberg (~6 s).
+ * Nothing is saved and nothing stays on the map.
+ */
+export async function playTitanic() {
+  if (busy || !fx || !renderer) return;
+  const route = TITANIC_ROUTE.map(([lon, lat]) => renderer!.fromLonLat(lon, lat)).filter((p): p is [number, number] => !!p);
+  if (route.length < 2) return;
+  busy = true;
+  try {
+    closeWindows();
+    game().setSimReport(null);
+    renderer.flyToBox(pad(boxOf(route), 0.25, 10), 60, 750);
+    await sleep(800);
+    sound.play('horn');
+    await new Promise<void>((resolve) => fx!.add(new TitanicScene(route, resolve)));
+  } catch (e) {
+    console.error('Titanic failed', e);
+  }
+  busy = false;
 }

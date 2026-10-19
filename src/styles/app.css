@@ -963,3 +963,4 @@ button.brand:active { transform: scale(0.98); }
 .about-note p { margin: 0 0 6px; }
 .about-note strong { color: var(--text); font-weight: 700; }
 .about-note .copyright { font-size: 12px; opacity: 0.85; }
+.action-emoji-inline { width: 20px; flex-shrink: 0; text-align: center; font-size: 17px; line-height: 1; }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../game/store';
 import { mapController } from '../game/mapController';
 import { formatArea, formatAreaMiles, formatKm2, formatTerritory, ordinal } from '../utils/format';
@@ -17,6 +17,7 @@ import {
 import { PowerCard } from './PowerCard';
 import { AlliesCard } from './AlliesCard';
 import { RenameForm } from './RenameForm';
+import { playable, randomOpponent, rebels, runCoastGrowth, runRebellion } from '../sim/runner';
 
 /**
  * Information about the tapped country. Right-hand panel on iPad landscape and
@@ -78,6 +79,16 @@ export function CountryPanel() {
   const shown = formatTerritory(ratio);
   // The bar's track is "real size" or "now", whichever is bigger; extra land shows in a second colour.
   const track = Math.max(ratio, 1);
+  const canPlay = territoryReady && playable(country.id);
+  const coastal = canPlay && mapController.isCoastal(country.id);
+  const canRebel = canPlay && rebels().some((r) => r.id === country.id);
+  const openConflict = (a: string | null, b: string | null) => {
+    const st = useGame.getState();
+    if (a && b) st.setConflictPreset({ a, b });
+    st.setSimView('conflict');
+  };
+  const attack = () => openConflict(country.id, randomOpponent(country.id));
+  const defend = () => openConflict(randomOpponent(country.id), country.id);
   const startPainting = () => {
     const st = useGame.getState();
     st.setPainter(country.id);
@@ -194,19 +205,37 @@ export function CountryPanel() {
           <button className="action" onClick={() => mapController.flyTo(country.id)}>
             <IconTarget /> Zoom to it
           </button>
-          {changed ? (
-            <button className="action" onClick={() => setConfirmReset(true)}>
-              <IconReset /> Reset borders
+          <button className="action" onClick={attack} disabled={!canPlay} title="Choose who to attack">
+            <IconSword /> Attack
+          </button>
+          <button className="action" onClick={defend} disabled={!canPlay} title="Someone attacks this country">
+            <IconShield /> Defend
+          </button>
+          <button
+            className="action"
+            onClick={() => runCoastGrowth(country.id)}
+            disabled={!canPlay || !coastal}
+            title={coastal ? 'Build new land along the coast' : 'This country has no coast'}
+          >
+            <IconWaves /> Expand Land
+            {canPlay && !coastal && <span className="soon-tag">No coast</span>}
+          </button>
+          <button className="action" onClick={() => useGame.getState().setSimView('disaster')} disabled={!canPlay}>
+            <span className="action-emoji-inline" aria-hidden>🌪️</span> Disaster
+          </button>
+          {canRebel && (
+            <button className="action" onClick={() => runRebellion(country.id)}>
+              <span className="action-emoji-inline" aria-hidden>✊</span> Rebel!
             </button>
-          ) : (
-            <SoonAction icon={<IconWaves />} label="Expand Land" />
           )}
-          <SoonAction icon={<IconSword />} label="Attack" />
-          <SoonAction icon={<IconShield />} label="Defend" />
           <button className="action" onClick={() => setEditingStats(!editingStats)} aria-pressed={editingStats}>
             <IconSliders /> {editingStats ? 'Done editing' : 'Edit Stats'}
           </button>
-          {changed && <SoonAction icon={<IconWaves />} label="Expand Land" />}
+          {changed && (
+            <button className="action" onClick={() => setConfirmReset(true)}>
+              <IconReset /> Reset borders
+            </button>
+          )}
         </div>
         {confirmReset && (
           <div className="confirm" role="alertdialog" aria-label="Reset borders?">
@@ -232,14 +261,5 @@ export function CountryPanel() {
         )}
       </div>
     </aside>
-  );
-}
-
-function SoonAction({ icon, label }: { icon: ReactNode; label: string }) {
-  return (
-    <button className="action soon" disabled title="Coming in a future update">
-      {icon} {label}
-      <span className="soon-tag">Soon</span>
-    </button>
   );
 }

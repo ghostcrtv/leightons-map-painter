@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useGame } from '../game/store';
 import { mapController } from '../game/mapController';
 import { IconClose, IconSearch } from './icons';
+import { playTitanic } from '../sim/runner';
 
 /** Find a country by typing its name; picking one selects it and flies the map there. */
 export function CountrySearch() {
@@ -42,6 +43,14 @@ export function CountrySearch() {
         autoCorrect="off"
         spellCheck={false}
         onChange={(e) => {
+          // A secret: the word "Titanic" plays a little scene.
+          if (e.target.value.trim().toLowerCase() === 'titanic') {
+            setQuery('');
+            setOpen(false);
+            inputRef.current?.blur();
+            void playTitanic();
+            return;
+          }
           setQuery(e.target.value);
           setOpen(true);
           setActive(0);

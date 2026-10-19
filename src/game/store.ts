@@ -45,6 +45,8 @@ interface GameState {
   rankingsOpen: boolean;
   /** Simulation menu: which page is open (null = closed). */
   simView: SimView | null;
+  /** Nations to start the Conflict window with (from the country panel's Attack / Defend). */
+  conflictPreset: { a: string; b: string } | null;
   /** A simulation is playing on the map: the banner text. */
   simBanner: SimBanner | null;
   /** The last simulation's result card (null = hidden). */
@@ -76,6 +78,8 @@ interface GameState {
   showBorders: boolean;
   showCapitals: boolean;
   showNight: boolean;
+  /** Zombies, aliens and other crazy disasters (Settings). */
+  crazyDisasters: boolean;
 
   setTool(t: Tool): void;
   setBrush(b: BrushSize): void;
@@ -87,6 +91,7 @@ interface GameState {
   setActionsOpen(v: boolean): void;
   setRankingsOpen(v: boolean): void;
   setSimView(v: SimView | null): void;
+  setConflictPreset(v: { a: string; b: string } | null): void;
   setSimBanner(v: SimBanner | null): void;
   setSimReport(v: SimReport | null): void;
   setSimAuto(v: boolean): void;
@@ -114,6 +119,7 @@ interface GameState {
   setShowBorders(v: boolean): void;
   setShowCapitals(v: boolean): void;
   setShowNight(v: boolean): void;
+  setCrazyDisasters(v: boolean): void;
 }
 
 export const useGame = create<GameState>((set) => ({
@@ -136,6 +142,7 @@ export const useGame = create<GameState>((set) => ({
   actionsOpen: false,
   rankingsOpen: false,
   simView: null,
+  conflictPreset: null,
   simBanner: null,
   simReport: null,
   simAuto: false,
@@ -159,6 +166,7 @@ export const useGame = create<GameState>((set) => ({
   showBorders: readSetting('showBorders', true),
   showCapitals: readSetting('showCapitals', true),
   showNight: readSetting('showNight', false),
+  crazyDisasters: readSetting('crazyDisasters', false),
 
   setTool: (tool) => set((s) => ({ tool, brush: tool === 'land' && s.brush === 'F' ? 'M' : s.brush })),
   setLandMode: (landMode) => set({ landMode }),
@@ -173,6 +181,7 @@ export const useGame = create<GameState>((set) => ({
   setActionsOpen: (actionsOpen) => set({ actionsOpen }),
   setRankingsOpen: (rankingsOpen) => set({ rankingsOpen }),
   setSimView: (simView) => set({ simView }),
+  setConflictPreset: (conflictPreset) => set({ conflictPreset }),
   setSimBanner: (simBanner) => set({ simBanner }),
   setSimReport: (simReport) => set({ simReport }),
   setSimAuto: (simAuto) => set({ simAuto }),
@@ -203,6 +212,10 @@ export const useGame = create<GameState>((set) => ({
   setShowBorders: (showBorders) => {
     writeSetting('showBorders', showBorders);
     set({ showBorders });
+  },
+  setCrazyDisasters: (crazyDisasters) => {
+    writeSetting('crazyDisasters', crazyDisasters);
+    set({ crazyDisasters });
   },
   setShowNight: (showNight) => {
     writeSetting('showNight', showNight);

@@ -448,6 +448,11 @@ export class MapRenderer {
     return this.world.invert(x, y);
   }
 
+  /** World point of a longitude/latitude. */
+  fromLonLat(lon: number, lat: number): [number, number] | null {
+    return this.world.project(lon, lat);
+  }
+
   beginInteraction() {
     this.stopMotion();
     this.interacting = true;
