@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0 — 2026-10-18 — Landmarks
+
+- New: 30 famous landmarks at their real locations (`src/data/landmarks.ts`). White map pins
+  appear from 2.2× zoom (Settings → 📍 Landmarks, on by default); tapping one opens a card with
+  a round photo, the name, where it is, a fun fact and the photo credit.
+- Photos: Wikimedia Commons (CC BY / CC BY-SA / CC0 / public domain), resized to 400×400 in
+  `public/landmarks/`; credits in `public/landmarks/credits.json` and the Licences file.
+- New badges: Sightseer (10 landmarks) and Globetrotter (all landmarks).
+- Shared `utils/emoji.ts` (emoji sprites, used by pins and crazy disasters).
+
 ## 1.1.0 — 2026-10-18 — Country buttons, crazy disasters and a secret
 
 - New: the country panel's Attack, Defend and Expand Land buttons work (no more "Soon"):

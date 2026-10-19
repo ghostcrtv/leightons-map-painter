@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useGame } from '../game/store';
 import { mapController } from '../game/mapController';
-import { LANDMARKS, LANDMARK_BY_ID } from '../data/landmarks';
-import { discover, discoveredCount } from '../game/landmarks';
+import { LANDMARK_BY_ID } from '../data/landmarks';
+import { discover } from '../game/landmarks';
 import { sound } from '../audio/sound';
 import { IconClose } from './icons';
 
@@ -13,7 +13,6 @@ export function LandmarkCard() {
   const byId = useGame((s) => s.countryById);
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number; below: boolean } | null>(null);
-  const [isNew, setIsNew] = useState(false);
   const [photoOk, setPhotoOk] = useState(true);
   const lm = card ? LANDMARK_BY_ID.get(card.id) : undefined;
 
@@ -21,7 +20,6 @@ export function LandmarkCard() {
     if (!lm) return;
     setPhotoOk(true);
     const first = discover(lm.id);
-    setIsNew(first);
     sound.play(first ? 'chirp' : 'pop');
   }, [lm]);
 
@@ -63,7 +61,6 @@ export function LandmarkCard() {
   const country = byId.get(lm.country);
   const flag = country ? mapController.flagUrl(country.flag) : null;
   const photo = lm.photo && photoOk ? `${import.meta.env.BASE_URL}landmarks/${lm.id}.jpg` : null;
-  const n = discoveredCount();
 
   return (
     <div
@@ -92,10 +89,6 @@ export function LandmarkCard() {
         {country ? `, ${country.name}` : ''}
       </p>
       <p className="landmark-fact">{lm.fact}</p>
-      <p className="landmark-count">
-        {isNew && <b className="landmark-new">New! </b>}
-        📸 {n} of {LANDMARKS.length} landmarks discovered
-      </p>
       {photo && lm.photo && (
         <p className="landmark-credit">
           Photo: {lm.photo.credit} · {lm.photo.licence}

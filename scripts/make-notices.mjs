@@ -35,6 +35,24 @@ const licenceText = (dir) => {
   return f ? fs.readFileSync(path.join(dir, f), 'utf8').trim() : null;
 };
 
+/** Landmark photos (public/landmarks/credits.json, written when the photos are added). */
+function landmarkPhotos() {
+  const f = path.join(ROOT, 'public/landmarks/credits.json');
+  if (!fs.existsSync(f)) return '';
+  const credits = JSON.parse(fs.readFileSync(f, 'utf8'));
+  let s = `LANDMARK PHOTOS
+---------------
+From Wikimedia Commons (https://commons.wikimedia.org). Each photo was resized and cropped
+to a square for the game. Licences: CC0 / Public domain (no conditions), CC BY and CC BY-SA
+(https://creativecommons.org/licenses/). Thank you to every photographer!
+
+`;
+  for (const [id, c] of Object.entries(credits)) {
+    s += `- ${c.name}: "${c.title}" by ${c.credit}, ${c.licence}\n  ${c.page}\n`;
+  }
+  return s + '\n';
+}
+
 let out = `Leighton's Map Painter — third-party notices
 =============================================
 
@@ -56,7 +74,7 @@ FONT
 ----
 Lilita One by Juan Montoreano, SIL Open Font License 1.1 (below).
 
-SOFTWARE LIBRARIES
+${landmarkPhotos()}SOFTWARE LIBRARIES
 ------------------
 `;
 for (const { name, dir, p } of order) {

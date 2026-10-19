@@ -270,6 +270,18 @@ the wheels in the Actions menu stay for manual decisions.
   `playTitanic()` (runner.ts) → `TitanicScene`: Southampton → Cherbourg → Queenstown → the real
   collision point (41.73 N, 49.95 W) using `renderer.fromLonLat`. Nothing is saved or left on the map.
 
+## Landmarks (src/data/landmarks.ts)
+
+- Pins drawn by `MapRenderer.drawLandmarks` (before labels, so names avoid them) from
+  `LANDMARK_MIN_ZOOM`; `landmarkAt` hit-tests (26 px); option `showLandmarks` (setting).
+  Tap → store `landmarkCard` → `LandmarkCard` (follows its pin each frame, closes when the map is
+  panned/zoomed by hand or the pin leaves the screen). Discoveries: `game/landmarks.ts` (badges).
+- Photos: Wikimedia Commons only (free licences), 400×400 JPEG in `public/landmarks/<id>.jpg`,
+  credit in the data (`photo`) AND `public/landmarks/credits.json` (feeds `npm run notices`).
+  Check each photo is the REAL place (one search result was the Statue of Liberty copy in Paris).
+  Workspace note: downloads need upload.wikimedia.org/commons.wikimedia.org allowed and are
+  heavily rate-limited; thumb.wikimedia.org is blocked — use the upload.wikimedia.org/…/thumb/ URL.
+
 ## Sound (src/audio/sound.ts)
 
 Sounds are synthesised with the Web Audio API (filtered noise + simple tones): no audio files,

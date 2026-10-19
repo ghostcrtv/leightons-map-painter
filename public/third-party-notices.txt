@@ -19,6 +19,73 @@ FONT
 ----
 Lilita One by Juan Montoreano, SIL Open Font License 1.1 (below).
 
+LANDMARK PHOTOS
+---------------
+From Wikimedia Commons (https://commons.wikimedia.org). Each photo was resized and cropped
+to a square for the game. Licences: CC0 / Public domain (no conditions), CC BY and CC BY-SA
+(https://creativecommons.org/licenses/). Thank you to every photographer!
+
+- Statue of Liberty: "Statue of Liberty, statue, Liberty Island, New York.jpg" by Christian David, CC BY-SA 4.0
+  https://commons.wikimedia.org/wiki/File:Statue_of_Liberty,_statue,_Liberty_Island,_New_York.jpg
+- Golden Gate Bridge: "Golden Gate Bridge as seen from Marshall’s Beach, March 2018.jpg" by Frank Schulenburg, CC BY-SA 4.0
+  https://commons.wikimedia.org/wiki/File:Golden_Gate_Bridge_as_seen_from_Marshall%E2%80%99s_Beach,_March_2018.jpg
+- Grand Canyon: "Grand Canyon Hopi Point with rainbow 2013.jpg" by Tuxyso, CC BY-SA 3.0
+  https://commons.wikimedia.org/wiki/File:Grand_Canyon_Hopi_Point_with_rainbow_2013.jpg
+- Mount Rushmore: "Mount Rushmore detail view.jpg" by Thomas Wolf, www.foto-tw.de, CC BY-SA 3.0
+  https://commons.wikimedia.org/wiki/File:Mount_Rushmore_detail_view.jpg
+- Niagara Falls: "Horseshoe Falls (Niagara Falls).jpg" by Maksimsokolov, CC BY-SA 4.0
+  https://commons.wikimedia.org/wiki/File:Horseshoe_Falls_(Niagara_Falls).jpg
+- Chichén Itzá: "Chichen Itza 3.jpg" by Daniel Schwen, CC BY-SA 4.0
+  https://commons.wikimedia.org/wiki/File:Chichen_Itza_3.jpg
+- Christ the Redeemer: "Rio de Janeiro - Cristo Redentor 01.jpg" by Arturdiasr, CC BY-SA 4.0
+  https://commons.wikimedia.org/wiki/File:Rio_de_Janeiro_-_Cristo_Redentor_01.jpg
+- Machu Picchu: "Machu Picchu, Perú, 2015-07-30, DD 47.JPG" by Diego Delso, CC BY-SA 4.0
+  https://commons.wikimedia.org/wiki/File:Machu_Picchu,_Per%C3%BA,_2015-07-30,_DD_47.JPG
+- Moai of Easter Island: "Ahu Tongariki cropped.jpg" by Rivi, CC BY-SA 3.0
+  https://commons.wikimedia.org/wiki/File:Ahu_Tongariki_cropped.jpg
+- Iguazú Falls: "Iguazú Falls 02.jpg" by Bernard Gagnon, CC BY-SA 4.0
+  https://commons.wikimedia.org/wiki/File:Iguaz%C3%BA_Falls_02.jpg
+- Eiffel Tower: "Tour Eiffel Wikimedia Commons.jpg" by Benh LIEU SONG, Public domain
+  https://commons.wikimedia.org/wiki/File:Tour_Eiffel_Wikimedia_Commons.jpg
+- Big Ben: "Big Ben Elizabeth Tower London 2023 01.jpg" by Julian Herzog, CC BY 4.0
+  https://commons.wikimedia.org/wiki/File:Big_Ben_Elizabeth_Tower_London_2023_01.jpg
+- Stonehenge: "Stonehenge, Condado de Wiltshire, Inglaterra, 2014-08-12, DD 18.JPG" by Diego Delso, CC BY-SA 4.0
+  https://commons.wikimedia.org/wiki/File:Stonehenge,_Condado_de_Wiltshire,_Inglaterra,_2014-08-12,_DD_18.JPG
+- Colosseum: "Colosseum in Rome, Italy - April 2007.jpg" by Diliff, CC BY-SA 2.5
+  https://commons.wikimedia.org/wiki/File:Colosseum_in_Rome,_Italy_-_April_2007.jpg
+- Leaning Tower of Pisa: "Exterior of the Leaning Tower (Pisa) in April 2024.1.jpg" by PaestumPaestum, CC BY 4.0
+  https://commons.wikimedia.org/wiki/File:Exterior_of_the_Leaning_Tower_(Pisa)_in_April_2024.1.jpg
+- Sagrada Família: "Sagrada Familia 03.jpg" by Bernard Gagnon, CC BY-SA 3.0
+  https://commons.wikimedia.org/wiki/File:Sagrada_Familia_03.jpg
+- Parthenon: "Attica 06-13 Athens 50 View from Philopappos - Acropolis Hill.jpg" by A.Savin, CC BY-SA 3.0
+  https://commons.wikimedia.org/wiki/File:Attica_06-13_Athens_50_View_from_Philopappos_-_Acropolis_Hill.jpg
+- Neuschwanstein Castle: "Schwangau - Schloss Neuschwanstein (b).JPG" by C. Stadler/Bwag, CC BY-SA 4.0
+  https://commons.wikimedia.org/wiki/File:Schwangau_-_Schloss_Neuschwanstein_(b).JPG
+- Saint Basil: "Moscow - 2025 - Daytime view of St. Basil's Cathedral from Vasilyevsky Spusk.jpg" by Юрий Д.К., CC BY 4.0
+  https://commons.wikimedia.org/wiki/File:Moscow_-_2025_-_Daytime_view_of_St._Basil%27s_Cathedral_from_Vasilyevsky_Spusk.jpg
+- Pyramids of Giza: "All Gizah Pyramids.jpg" by Ricardo Liberato, CC BY-SA 2.0
+  https://commons.wikimedia.org/wiki/File:All_Gizah_Pyramids.jpg
+- Petra: "The Treasury, Petra, Jordan1.jpg" by Diego Delso, CC BY-SA 3.0
+  https://commons.wikimedia.org/wiki/File:The_Treasury,_Petra,_Jordan1.jpg
+- Burj Khalifa: "Burj Khalifa (16260269606).jpg" by Laika ac, CC BY-SA 2.0
+  https://commons.wikimedia.org/wiki/File:Burj_Khalifa_(16260269606).jpg
+- Mount Kilimanjaro: "Kilimanjaro, Tanzania, 2024-05-22, DD 109.jpg" by Diego Delso, CC BY-SA 4.0
+  https://commons.wikimedia.org/wiki/File:Kilimanjaro,_Tanzania,_2024-05-22,_DD_109.jpg
+- Victoria Falls: "Mosi-oa-Tunya, Livingstone (20260519-P1075665).jpg" by Matti Blume, CC BY-SA 4.0
+  https://commons.wikimedia.org/wiki/File:Mosi-oa-Tunya,_Livingstone_(20260519-P1075665).jpg
+- Taj Mahal: "Taj Mahal, Agra, India edit2.jpg" by Yann; edited by King of Hearts, CC BY-SA 4.0
+  https://commons.wikimedia.org/wiki/File:Taj_Mahal,_Agra,_India_edit2.jpg
+- Great Wall of China: "Badaling China Great-Wall-of-China-06.jpg" by CEphoto, Uwe Aranas, CC BY-SA 3.0
+  https://commons.wikimedia.org/wiki/File:Badaling_China_Great-Wall-of-China-06.jpg
+- Mount Fuji: "Series-N700a-Mt.Fuji.jpg" by MaedaAkihiko, CC BY-SA 4.0
+  https://commons.wikimedia.org/wiki/File:Series-N700a-Mt.Fuji.jpg
+- Angkor Wat: "20171126 Angkor Wat 4712 DxO.jpg" by Jakub Hałun, CC BY-SA 4.0
+  https://commons.wikimedia.org/wiki/File:20171126_Angkor_Wat_4712_DxO.jpg
+- Sydney Opera House: "Sydney Opera House - Dec 2008.jpg" by Diliff, CC BY-SA 3.0
+  https://commons.wikimedia.org/wiki/File:Sydney_Opera_House_-_Dec_2008.jpg
+- Uluru: "Uluṟu (Ayers Rock), Sunset.jpg" by Weyf, CC0
+  https://commons.wikimedia.org/wiki/File:Ulu%E1%B9%9Fu_(Ayers_Rock),_Sunset.jpg
+
 SOFTWARE LIBRARIES
 ------------------
 

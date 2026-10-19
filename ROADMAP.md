@@ -71,6 +71,7 @@ Hosting is live (GitHub Pages). Still waiting on the App Store decision (Apple D
 - Searchable country pickers, iPhone sound fix, About/copyright in Help.
 - Country panel: Attack, Defend, Expand Land, Disaster, Rebel! all work.
 - Crazy disasters (Settings) and a secret easter egg.
+- Landmarks: 30 photo pins with fun facts (Settings → Landmarks). Ideas: more landmarks, a landmark quiz.
 
 ## Upcoming
 
