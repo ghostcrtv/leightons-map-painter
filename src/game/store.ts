@@ -80,6 +80,10 @@ interface GameState {
   showNight: boolean;
   /** Zombies, aliens and other crazy disasters (Settings). */
   crazyDisasters: boolean;
+  /** Landmark pins on the map (Settings). */
+  showLandmarks: boolean;
+  /** The open landmark card: which one, and where its spot is on screen. */
+  landmarkCard: { id: string; x: number; y: number } | null;
 
   setTool(t: Tool): void;
   setBrush(b: BrushSize): void;
@@ -120,6 +124,8 @@ interface GameState {
   setShowCapitals(v: boolean): void;
   setShowNight(v: boolean): void;
   setCrazyDisasters(v: boolean): void;
+  setShowLandmarks(v: boolean): void;
+  setLandmarkCard(v: { id: string; x: number; y: number } | null): void;
 }
 
 export const useGame = create<GameState>((set) => ({
@@ -167,6 +173,8 @@ export const useGame = create<GameState>((set) => ({
   showCapitals: readSetting('showCapitals', true),
   showNight: readSetting('showNight', false),
   crazyDisasters: readSetting('crazyDisasters', false),
+  showLandmarks: readSetting('showLandmarks', true),
+  landmarkCard: null,
 
   setTool: (tool) => set((s) => ({ tool, brush: tool === 'land' && s.brush === 'F' ? 'M' : s.brush })),
   setLandMode: (landMode) => set({ landMode }),
@@ -213,6 +221,11 @@ export const useGame = create<GameState>((set) => ({
     writeSetting('showBorders', showBorders);
     set({ showBorders });
   },
+  setShowLandmarks: (showLandmarks) => {
+    writeSetting('showLandmarks', showLandmarks);
+    set(showLandmarks ? { showLandmarks } : { showLandmarks, landmarkCard: null });
+  },
+  setLandmarkCard: (landmarkCard) => set({ landmarkCard }),
   setCrazyDisasters: (crazyDisasters) => {
     writeSetting('crazyDisasters', crazyDisasters);
     set({ crazyDisasters });

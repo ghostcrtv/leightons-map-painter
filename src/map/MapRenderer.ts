@@ -32,6 +32,8 @@ import {
 } from './camera';
 import { bboxContains, bboxHeight, bboxIntersects, bboxWidth, type BBox } from './geometry';
 import type { FlagLibrary } from './flags';
+import { LANDMARKS } from '../data/landmarks';
+import { drawEmoji } from '../utils/emoji';
 import type { CountryShape, Lod, World, LineBuckets } from './world';
 import type { Layer, StrokeKind, Territory } from '../territory/Territory';
 import { fitFlagRect, unionBBox, emptyBBox, type Rect } from './geometry';
@@ -47,6 +49,7 @@ export interface MapOptions {
   showLabels: boolean;
   showBorders: boolean;
   showCapitals: boolean;
+  showLandmarks: boolean;
 }
 
 const OCEAN = '#2a6f97';
@@ -62,6 +65,11 @@ const REAL_BORDER = '#5ad8ff';
 const CAPITAL_MIN_COUNTRY_PX = 140;
 /** …or, for small countries, once zoomed in this far. */
 const CAPITAL_ANY_ZOOM = 14;
+/** Landmark pins show from this zoom (×) — enough to zoom into a region, not the whole world. */
+export const LANDMARK_MIN_ZOOM = 2.2;
+/** Pin head: radius and how far above the real spot it floats (screen px). */
+const PIN_R = 13;
+const PIN_UP = 21;
 /** Below this many CSS px a shape gets a flat colour instead of a clipped flag. */
 const MIN_FLAG_PX = 8;
 /** Switch to the detailed borders when zoomed in at least this much. */
@@ -92,7 +100,9 @@ export class MapRenderer {
   private cam: Camera = { x: 0, y: 0, scale: 1 };
   private limits: CameraLimits = { minScale: 1, maxScale: MAX_ZOOM };
   private insets: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
-  private options: MapOptions = { showLabels: true, showBorders: true, showCapitals: true };
+  private options: MapOptions = { showLabels: true, showBorders: true, showCapitals: true, showLandmarks: false };
+  /** Landmark pins, projected once (world units). */
+  private landmarks: { id: string; x: number; y: number; emoji: string }[] = [];
 
   private selectedId: string | null = null;
   private hoverId: string | null = null;
@@ -735,8 +745,69 @@ export class MapRenderer {
 
     // Labels share one list of placed boxes so names never overlap each other.
     const placed: LabelBox[] = [];
+    if (this.options.showLandmarks) this.drawLandmarks(ctx, cam, visible, zoomRel, placed);
     if (this.options.showLabels) this.drawLabels(ctx, cam, visible, sel ?? null, placed);
     if (this.options.showCapitals) this.drawCapitals(ctx, cam, visible, zoomRel, placed);
+  }
+
+  /** Landmark pins: a white map pin with the landmark's emoji. Drawn before labels so names avoid them. */
+  private drawLandmarks(ctx: CanvasRenderingContext2D, cam: Camera, visible: BBox, zoomRel: number, placed: LabelBox[]) {
+    if (zoomRel < LANDMARK_MIN_ZOOM) return;
+    if (!this.landmarks.length) this.projectLandmarks();
+    for (const lm of this.landmarks) {
+      if (!bboxContainsPoint(visible, lm.x, lm.y)) continue;
+      const [x, y] = worldToScreen(cam, lm.x, lm.y);
+      const hy = y - PIN_UP;
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.45)';
+      ctx.shadowBlur = 6;
+      ctx.shadowOffsetY = 2;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - PIN_R * 0.62, hy + PIN_R * 0.75);
+      ctx.arc(x, hy, PIN_R, Math.PI * 0.72, Math.PI * 0.28);
+      ctx.closePath();
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = SELECT;
+      ctx.stroke();
+      ctx.restore();
+      drawEmoji(ctx, lm.emoji, x, hy + 0.5, 16);
+      placed.push({ x0: x - PIN_R - 2, y0: hy - PIN_R - 2, x1: x + PIN_R + 2, y1: y + 2 });
+    }
+  }
+
+  private projectLandmarks() {
+    this.landmarks = LANDMARKS.flatMap((l) => {
+      const p = this.world.project(l.lon, l.lat);
+      return p ? [{ id: l.id, x: p[0], y: p[1], emoji: l.emoji }] : [];
+    });
+  }
+
+  /** The landmark pin under a screen point (a generous finger-sized area), or null. */
+  landmarkAt(sx: number, sy: number): { id: string; x: number; y: number } | null {
+    if (!this.options.showLandmarks || this.zoomRelative() < LANDMARK_MIN_ZOOM) return null;
+    if (!this.landmarks.length) this.projectLandmarks();
+    let best: { id: string; x: number; y: number } | null = null;
+    let bestD = 26 * 26;
+    for (const lm of this.landmarks) {
+      const [x, y] = worldToScreen(this.cam, lm.x, lm.y);
+      const d = (x - sx) ** 2 + (y - PIN_UP - sy) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = { id: lm.id, x, y };
+      }
+    }
+    return best;
+  }
+
+  /** Where a landmark's real spot is on screen now. */
+  landmarkScreen(id: string): [number, number] | null {
+    if (!this.landmarks.length) this.projectLandmarks();
+    const lm = this.landmarks.find((l) => l.id === id);
+    return lm ? worldToScreen(this.cam, lm.x, lm.y) : null;
   }
 
   /** Capital cities: a yellow star with a yellow name, shown when zoomed in enough. */

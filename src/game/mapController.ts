@@ -19,6 +19,8 @@ export function attachMap(r: MapRenderer | null, flags: FlagLibrary | null) {
 
 export const mapController = {
   zoomIn: () => renderer?.zoomStep(2),
+  /** Where a landmark's real spot is on screen right now. */
+  landmarkScreen: (id: string) => renderer?.landmarkScreen(id) ?? null,
   zoomOut: () => renderer?.zoomStep(0.5),
   wholeWorld: () => renderer?.showWholeWorld(),
   /** Waits two frames so a just-opened country panel is measured before the map centres. */

@@ -37,6 +37,8 @@ export const BADGES: Badge[] = [
   { id: 'spinner', emoji: '🎡', name: 'Wheel Master', how: 'Spin the action wheels 10 times' },
   { id: 'history-buff', emoji: '📜', name: 'History Buff', how: 'Watch a replay in the History' },
   { id: 'world-builder', emoji: '🗂️', name: 'World Builder', how: 'Make 3 different worlds' },
+  { id: 'sightseer', emoji: '📸', name: 'Sightseer', how: 'Discover 10 landmarks' },
+  { id: 'globetrotter', emoji: '🧭', name: 'Globetrotter', how: 'Discover every landmark' },
 ];
 
 let unlocked: Record<string, number> = readSetting('badges', {});

@@ -12,6 +12,7 @@ import { ActionsDialog } from './components/ActionsDialog';
 import { RankingsDialog } from './components/RankingsDialog';
 import { SimulationDialog } from './components/SimulationDialog';
 import { SimHud } from './components/SimHud';
+import { LandmarkCard } from './components/LandmarkCard';
 import { WorldsDialog } from './components/WorldsDialog';
 import { HistoryDialog } from './components/HistoryDialog';
 import { CountryDesigner } from './components/CountryDesigner';
@@ -51,6 +52,7 @@ export default function App() {
           <CountryPanel />
           <StatusBar />
           <SimHud />
+          <LandmarkCard />
         </>
       )}
       {status !== 'ready' && (

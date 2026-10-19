@@ -15,6 +15,7 @@ export function SettingsDialog() {
       <Toggle label="Show country names" checked={s.showLabels} onChange={s.setShowLabels} />
       <Toggle label="Show capital cities" hint="Yellow stars, when you zoom in" checked={s.showCapitals} onChange={s.setShowCapitals} />
       <Toggle label="Show borders" checked={s.showBorders} onChange={s.setShowBorders} />
+      <Toggle label="📍 Landmarks" hint="Famous places as pins when you zoom in; tap one to see it" checked={s.showLandmarks} onChange={s.setShowLandmarks} />
       <Toggle label="Day and night" hint="Night slowly moves around the world; cities light up" checked={s.showNight} onChange={s.setShowNight} />
       <Toggle
         label="🤪 Crazy disasters"

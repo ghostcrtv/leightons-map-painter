@@ -67,7 +67,7 @@ export function MapView() {
         if (window.location.search.includes('debug')) (window as unknown as { __sound: typeof sound }).__sound = sound;
         if (window.location.search.includes('debug')) (window as unknown as { __game: typeof useGame }).__game = useGame;
         const s = useGame.getState();
-        r.setOptions({ showLabels: s.showLabels, showBorders: s.showBorders, showCapitals: s.showCapitals });
+        r.setOptions({ showLabels: s.showLabels, showBorders: s.showBorders, showCapitals: s.showCapitals, showLandmarks: s.showLandmarks });
         r.setSelected(s.selectedId);
 
         /** One finger paints when Paint (with a country chosen) or Erase is on. */
@@ -80,6 +80,9 @@ export function MapView() {
           return false;
         };
         const toWorld = (x: number, y: number) => r.toWorld(x, y);
+        const closeLandmark = () => {
+          if (useGame.getState().landmarkCard) useGame.getState().setLandmarkCard(null);
+        };
         let fillAt: [number, number] | null = null;
         /**
          * A stroke only changes ONE country: the first one it reaches that it can change
@@ -107,10 +110,25 @@ export function MapView() {
           t.extendStroke(wx, wy);
         };
         gestures = new GestureController(canvas, {
-          panBy: (dx, dy) => r.panBy(dx, dy),
-          zoomAt: (f, x, y) => r.zoomAt(f, x, y),
+          panBy: (dx, dy) => {
+            closeLandmark();
+            r.panBy(dx, dy);
+          },
+          zoomAt: (f, x, y) => {
+            closeLandmark();
+            r.zoomAt(f, x, y);
+          },
           tap: (x, y) => {
             const st = useGame.getState();
+            // A landmark pin? Show its card (only with the normal select tool, so painting still works).
+            if (st.tool === 'select') {
+              const lm = r.landmarkAt(x, y);
+              if (lm) {
+                st.setLandmarkCard(lm);
+                return;
+              }
+            }
+            closeLandmark();
             const id = r.hitTest(x, y);
             // Paint / new-land tool with no country chosen yet: the tapped country becomes the painter.
             if ((st.tool === 'paint' || (st.tool === 'land' && st.landMode === 'add')) && !st.painterId) {
@@ -195,9 +213,10 @@ export function MapView() {
             if (
               st.showLabels !== prev.showLabels ||
               st.showBorders !== prev.showBorders ||
-              st.showCapitals !== prev.showCapitals
+              st.showCapitals !== prev.showCapitals ||
+              st.showLandmarks !== prev.showLandmarks
             ) {
-              r.setOptions({ showLabels: st.showLabels, showBorders: st.showBorders, showCapitals: st.showCapitals });
+              r.setOptions({ showLabels: st.showLabels, showBorders: st.showBorders, showCapitals: st.showCapitals, showLandmarks: st.showLandmarks });
             }
           }),
         );
