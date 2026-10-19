@@ -270,6 +270,19 @@ the wheels in the Actions menu stay for manual decisions.
   `playTitanic()` (runner.ts) → `TitanicScene`: Southampton → Cherbourg → Queenstown → the real
   collision point (41.73 N, 49.95 W) using `renderer.fromLonLat`. Nothing is saved or left on the map.
 
+## Secrets (never mention them in Help or anywhere in the UI)
+
+- "titanic" in search → Titanic scene (above). "messi" in search → `playSoccer()` → `SoccerScene`
+  (src/sim/eggs.ts): pitch centred on screen over Argentina, a GENERIC cartoon #10 in a sky-blue
+  and white striped shirt (deliberately no real person's face or name), goal, "GOOOOL!", crowd cheer.
+- The monkey (`game/secrets.ts`): a tiny 🐒 on open water, visible only at ≥150× zoom
+  (`SECRET_ZOOM`). Placed the first time the grid is ready and moved on every "Reset whole
+  world" (`mapController.resetWorld` → `moveMonkey` + `renderer.refreshSecrets`). Setting
+  `monkeySpot`. Tap → `SecretPop` "You Found Me!" + 'monkey' sound (~1.6 s).
+- The Impossible Island: always at Point Nemo (48.8767 S, 123.3933 W), visible from 90× zoom,
+  drawn as a speck of sand + palm. Tap → "You found The Impossible Island!" + 'adventure' sound.
+- Taps on secrets are checked first in MapView's tap handler (`renderer.secretAt`).
+
 ## Landmarks (src/data/landmarks.ts)
 
 - Pins drawn by `MapRenderer.drawLandmarks` (before labels, so names avoid them) from

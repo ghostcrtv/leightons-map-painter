@@ -14,7 +14,8 @@ import { readSetting, writeSetting } from '../utils/settings';
 type Name =
   | 'launch' | 'boom' | 'bigBoom' | 'chirp' | 'pop' | 'tick' | 'win' | 'peace' | 'sting' | 'fill'
   | 'splash' | 'rumble' | 'wind' | 'rain' | 'wave' | 'fire' | 'whistle' | 'blizzard' | 'sand' | 'heat'
-  | 'groan' | 'roar' | 'laser' | 'ufo' | 'skitter' | 'whoosh' | 'crash' | 'horn';
+  | 'groan' | 'roar' | 'laser' | 'ufo' | 'skitter' | 'whoosh' | 'crash' | 'horn'
+  | 'monkey' | 'adventure' | 'kick' | 'cheer';
 
 class SoundEngine {
   private ctx: AudioContext | null = null;
@@ -277,6 +278,46 @@ class SoundEngine {
         this.tone(ctx, t + 0.2, { type: 'triangle', f0: 260, f1: 110, peak: 0.1, attack: 0.1, hold: 0.4, release: 0.9 });
         this.tone(ctx, t, { type: 'sine', f0: 80, f1: 35, peak: 0.45, attack: 0.005, release: 0.6 });
         break;
+      case 'monkey': { // "ooh ooh aah aah!" — four hooting calls that slide up, then two big ones
+        const calls: [number, number, number][] = [[0, 420, 760], [0.2, 450, 800], [0.45, 560, 1100], [0.72, 600, 1200]];
+        for (const [d, f0, f1] of calls) {
+          this.tone(ctx, t + d, { type: 'triangle', f0, f1, peak: 0.16, attack: 0.02, hold: 0.06, release: 0.14 });
+          this.tone(ctx, t + d, { type: 'sine', f0: f0 * 2, f1: f1 * 2, peak: 0.05, attack: 0.02, hold: 0.05, release: 0.12 });
+        }
+        this.noiseHit(ctx, t, { type: 'bandpass', f0: 1200, q: 3, peak: 0.05, attack: 0.02, hold: 0.8, release: 0.2 });
+        break;
+      }
+      case 'adventure': { // a brave little fanfare with drums: "ta-ta-taaa, ta-da-daaaa!"
+        const notes: [number, number, number][] = [
+          [0, 392, 0.12], [0.15, 392, 0.12], [0.3, 523.25, 0.4], [0.78, 466.16, 0.12], [0.93, 523.25, 0.12], [1.08, 587.33, 0.12], [1.23, 659.25, 0.9],
+        ];
+        for (const [d, f, hold] of notes) {
+          this.tone(ctx, t + d, { type: 'sawtooth', f0: f, peak: 0.07, attack: 0.02, hold, release: 0.25 });
+          this.tone(ctx, t + d, { type: 'square', f0: f / 2, peak: 0.035, attack: 0.02, hold, release: 0.25 });
+        }
+        // the final chord
+        for (const f of [523.25, 783.99]) this.tone(ctx, t + 1.23, { type: 'triangle', f0: f, peak: 0.06, attack: 0.05, hold: 0.85, release: 0.5 });
+        // drums
+        for (const d of [0, 0.3, 0.78, 1.23, 1.5]) {
+          this.tone(ctx, t + d, { type: 'sine', f0: 110, f1: 55, peak: 0.35, attack: 0.005, release: 0.3 });
+          this.noiseHit(ctx, t + d, { type: 'lowpass', f0: 400, f1: 120, peak: 0.12, attack: 0.005, release: 0.2 });
+        }
+        break;
+      }
+      case 'kick': // foot meets ball
+        this.tone(ctx, t, { type: 'sine', f0: 160, f1: 60, peak: 0.4, attack: 0.002, release: 0.12 });
+        this.noiseHit(ctx, t, { type: 'bandpass', f0: 1800, q: 1, peak: 0.12, attack: 0.002, release: 0.05 });
+        break;
+      case 'cheer': { // a stadium crowd roaring, with whistles
+        this.noiseHit(ctx, t, { type: 'bandpass', f0: 900, f1: 1300, q: 0.7, peak: 0.45, attack: 0.25, hold: 2.2, release: 1.4 });
+        this.noiseHit(ctx, t + 0.1, { type: 'bandpass', f0: 2200, f1: 2800, q: 1.2, peak: 0.18, attack: 0.3, hold: 2, release: 1.2 });
+        for (let i = 0; i < 5; i++) {
+          const d = 0.2 + Math.random() * 2.2;
+          const f = 2000 + Math.random() * 900;
+          this.tone(ctx, t + d, { type: 'sine', f0: f, f1: f * 1.04, peak: 0.05, attack: 0.02, hold: 0.25, release: 0.1 });
+        }
+        break;
+      }
       case 'horn': // a deep ship's horn
         this.tone(ctx, t, { type: 'sawtooth', f0: 98, peak: 0.06, attack: 0.08, hold: 0.9, release: 0.4 });
         this.tone(ctx, t, { type: 'sawtooth', f0: 147, peak: 0.045, attack: 0.08, hold: 0.9, release: 0.4 });

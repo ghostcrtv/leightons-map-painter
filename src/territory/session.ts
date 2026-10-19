@@ -2,6 +2,7 @@
  * Creates the Territory for the loaded world and keeps the UI store in sync with it.
  * Saving lives in src/worlds/session.ts (named saved worlds).
  */
+import { monkeySpot, moveMonkey } from '../game/secrets';
 import { useGame } from '../game/store';
 import type { World } from '../map/world';
 import { Territory } from './Territory';
@@ -50,6 +51,7 @@ export function createTerritory(world: World): Territory {
   });
   current = t;
   push();
+  if (!monkeySpot()) moveMonkey(t.grid); // the very first time: hide him somewhere
   useGame.getState().setTerritoryReady();
   return t;
 }

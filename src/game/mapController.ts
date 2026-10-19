@@ -6,6 +6,7 @@ import type { MapRenderer } from '../map/MapRenderer';
 import type { FlagLibrary } from '../map/flags';
 import { getTerritory } from '../territory/session';
 import { isCoastal } from '../territory/regions';
+import { moveMonkey } from './secrets';
 
 let coastCache = { key: '', value: false };
 
@@ -32,7 +33,14 @@ export const mapController = {
   undo: () => getTerritory()?.undo(),
   redo: () => getTerritory()?.redo(),
   resetCountry: (id: string) => getTerritory()?.resetCountry(id),
-  resetWorld: () => getTerritory()?.resetWorld(),
+  resetWorld: () => {
+    const t = getTerritory();
+    t?.resetWorld();
+    if (t) {
+      moveMonkey(t.grid);
+      renderer?.refreshSecrets();
+    }
+  },
   stats: (id: string) => getTerritory()?.statsFor(id) ?? null,
   isConquered: (id: string) => getTerritory()?.isConquered(id) ?? false,
   worldChanged: () => getTerritory()?.changedFromEarth ?? false,

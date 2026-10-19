@@ -13,6 +13,7 @@ import { RankingsDialog } from './components/RankingsDialog';
 import { SimulationDialog } from './components/SimulationDialog';
 import { SimHud } from './components/SimHud';
 import { LandmarkCard } from './components/LandmarkCard';
+import { SecretPop } from './components/SecretPop';
 import { WorldsDialog } from './components/WorldsDialog';
 import { HistoryDialog } from './components/HistoryDialog';
 import { CountryDesigner } from './components/CountryDesigner';
@@ -53,6 +54,7 @@ export default function App() {
           <StatusBar />
           <SimHud />
           <LandmarkCard />
+          <SecretPop />
         </>
       )}
       {status !== 'ready' && (

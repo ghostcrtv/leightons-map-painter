@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.0 — 2026-10-19 — More secrets
+
+- Three new hidden surprises (see CLAUDE.md → "Secrets"; deliberately not in Help).
+- New sounds: monkey, adventure fanfare, kick, crowd cheer.
+
 ## 1.2.0 — 2026-10-18 — Landmarks
 
 - New: 30 famous landmarks at their real locations (`src/data/landmarks.ts`). White map pins

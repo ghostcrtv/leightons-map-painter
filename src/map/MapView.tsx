@@ -120,6 +120,12 @@ export function MapView() {
           },
           tap: (x, y) => {
             const st = useGame.getState();
+            // Shh… found something hidden?
+            const secret = r.secretAt(x, y);
+            if (secret) {
+              st.setSecretPop(secret);
+              return;
+            }
             // A landmark pin? Show its card (only with the normal select tool, so painting still works).
             if (st.tool === 'select') {
               const lm = r.landmarkAt(x, y);

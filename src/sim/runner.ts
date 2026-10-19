@@ -22,6 +22,7 @@ import { formatArea } from '../utils/format';
 import { unlock } from '../game/achievements';
 import { playBattle, playDisaster, playGrowth, playSeaRise } from './shows';
 import { TITANIC_ROUTE, TitanicScene } from './crazy';
+import { SoccerScene } from './eggs';
 import { planCoastGrowth, planRebellion, planSeaRise, rebellionCandidates } from '../territory/events';
 import { buildHistory } from './history';
 import { sound } from '../audio/sound';
@@ -1012,6 +1013,25 @@ export async function playTitanic() {
     await new Promise<void>((resolve) => fx!.add(new TitanicScene(route, resolve)));
   } catch (e) {
     console.error('Titanic failed', e);
+  }
+  busy = false;
+}
+
+/** Searching "messi": a star footballer scores over Argentina and the crowd cheers (~5.5 s). */
+export async function playSoccer() {
+  if (busy || !fx || !renderer) return;
+  const box = renderer.countryBox('AR');
+  const lp = renderer.labelPoint('AR');
+  if (!box || !lp) return;
+  busy = true;
+  try {
+    closeWindows();
+    game().setSimReport(null);
+    renderer.flyToBox(pad(box, 0.15, 4), 150, 750);
+    await sleep(800);
+    await new Promise<void>((resolve) => fx!.add(new SoccerScene([lp[0], lp[1]], resolve)));
+  } catch (e) {
+    console.error('Soccer failed', e);
   }
   busy = false;
 }

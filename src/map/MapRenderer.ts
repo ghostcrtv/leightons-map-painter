@@ -33,6 +33,7 @@ import {
 import { bboxContains, bboxHeight, bboxIntersects, bboxWidth, type BBox } from './geometry';
 import type { FlagLibrary } from './flags';
 import { LANDMARKS } from '../data/landmarks';
+import { IMPOSSIBLE_ISLAND, SECRET_ZOOM, monkeySpot, type SecretKind } from '../game/secrets';
 import { drawEmoji } from '../utils/emoji';
 import type { CountryShape, Lod, World, LineBuckets } from './world';
 import type { Layer, StrokeKind, Territory } from '../territory/Territory';
@@ -745,9 +746,68 @@ export class MapRenderer {
 
     // Labels share one list of placed boxes so names never overlap each other.
     const placed: LabelBox[] = [];
+    this.drawSecrets(ctx, cam, visible, zoomRel);
     if (this.options.showLandmarks) this.drawLandmarks(ctx, cam, visible, zoomRel, placed);
     if (this.options.showLabels) this.drawLabels(ctx, cam, visible, sel ?? null, placed);
     if (this.options.showCapitals) this.drawCapitals(ctx, cam, visible, zoomRel, placed);
+  }
+
+  /** Hidden things (game/secrets.ts), in world units. */
+  private secrets: { kind: SecretKind; x: number; y: number }[] | null = null;
+
+  /** The monkey moved (world reset): find the secrets again. */
+  refreshSecrets() {
+    this.secrets = null;
+    this.invalidate();
+  }
+
+  private secretList() {
+    if (!this.secrets) {
+      const list: { kind: SecretKind; x: number; y: number }[] = [];
+      const m = monkeySpot();
+      if (m) list.push({ kind: 'monkey', x: m[0], y: m[1] });
+      const p = this.world.project(IMPOSSIBLE_ISLAND[0], IMPOSSIBLE_ISLAND[1]);
+      if (p) list.push({ kind: 'island', x: p[0], y: p[1] });
+      // Don't remember the list until the monkey has a spot (he's placed once the grid is ready).
+      if (m) this.secrets = list;
+      return list;
+    }
+    return this.secrets;
+  }
+
+  /** Shh: only drawn when zoomed right in, and very small. */
+  private drawSecrets(ctx: CanvasRenderingContext2D, cam: Camera, visible: BBox, zoomRel: number) {
+    for (const s of this.secretList()) {
+      if (zoomRel < SECRET_ZOOM[s.kind] || !bboxContainsPoint(visible, s.x, s.y)) continue;
+      const [x, y] = worldToScreen(cam, s.x, s.y);
+      if (s.kind === 'monkey') {
+        drawEmoji(ctx, '🐒', x, y, 11);
+      } else {
+        // The tiniest island: a speck of sand with one palm tree.
+        ctx.save();
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.beginPath();
+        ctx.ellipse(x, y + 1, 7, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#f2d694';
+        ctx.beginPath();
+        ctx.ellipse(x, y + 1, 5, 2.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        drawEmoji(ctx, '🌴', x + 0.5, y - 4, 9);
+      }
+    }
+  }
+
+  /** A hidden thing under a screen point (only when it can be seen). */
+  secretAt(sx: number, sy: number): SecretKind | null {
+    const z = this.zoomRelative();
+    for (const s of this.secretList()) {
+      if (z < SECRET_ZOOM[s.kind]) continue;
+      const [x, y] = worldToScreen(this.cam, s.x, s.y);
+      if ((x - sx) ** 2 + (y - 2 - sy) ** 2 < 18 * 18) return s.kind;
+    }
+    return null;
   }
 
   /** Landmark pins: a white map pin with the landmark's emoji. Drawn before labels so names avoid them. */

@@ -84,6 +84,8 @@ interface GameState {
   showLandmarks: boolean;
   /** The open landmark card: which one, and where its spot is on screen. */
   landmarkCard: { id: string; x: number; y: number } | null;
+  /** A found secret being celebrated (SecretPop). */
+  secretPop: 'monkey' | 'island' | null;
 
   setTool(t: Tool): void;
   setBrush(b: BrushSize): void;
@@ -126,6 +128,7 @@ interface GameState {
   setCrazyDisasters(v: boolean): void;
   setShowLandmarks(v: boolean): void;
   setLandmarkCard(v: { id: string; x: number; y: number } | null): void;
+  setSecretPop(v: 'monkey' | 'island' | null): void;
 }
 
 export const useGame = create<GameState>((set) => ({
@@ -175,6 +178,7 @@ export const useGame = create<GameState>((set) => ({
   crazyDisasters: readSetting('crazyDisasters', false),
   showLandmarks: readSetting('showLandmarks', true),
   landmarkCard: null,
+  secretPop: null,
 
   setTool: (tool) => set((s) => ({ tool, brush: tool === 'land' && s.brush === 'F' ? 'M' : s.brush })),
   setLandMode: (landMode) => set({ landMode }),
@@ -226,6 +230,7 @@ export const useGame = create<GameState>((set) => ({
     set(showLandmarks ? { showLandmarks } : { showLandmarks, landmarkCard: null });
   },
   setLandmarkCard: (landmarkCard) => set({ landmarkCard }),
+  setSecretPop: (secretPop) => set({ secretPop }),
   setCrazyDisasters: (crazyDisasters) => {
     writeSetting('crazyDisasters', crazyDisasters);
     set({ crazyDisasters });
