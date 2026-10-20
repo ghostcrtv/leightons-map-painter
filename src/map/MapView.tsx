@@ -227,15 +227,34 @@ export function MapView() {
           }),
         );
 
+        // Shake + camera punch are CSS transforms on both canvases (no map redraw needed).
+        const camFx = { dx: 0, dy: 0, scale: 1, ox: 0, oy: 0 };
+        const applyCamFx = () => {
+          const parts: string[] = [];
+          if (camFx.dx || camFx.dy) parts.push(`translate(${camFx.dx.toFixed(1)}px, ${camFx.dy.toFixed(1)}px)`);
+          if (camFx.scale !== 1) parts.push(`scale(${camFx.scale.toFixed(4)})`);
+          const tf = parts.join(' ');
+          const origin = `${camFx.ox.toFixed(0)}px ${camFx.oy.toFixed(0)}px`;
+          for (const c of [canvas, fxCanvas]) {
+            c.style.transformOrigin = origin;
+            c.style.transform = tf;
+          }
+        };
         // Simulation effects (missiles, smoke, storms…) on a see-through layer above the map.
         const fx = new Effects(fxCanvas, {
           toScreen: (x, y) => r.toScreen(x, y),
           toWorld: (x, y) => r.toWorld(x, y),
           zoom: () => r.zoomRelative(),
           shake: (dx, dy) => {
-            const tf = dx || dy ? `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)` : '';
-            canvas.style.transform = tf;
-            fxCanvas.style.transform = tf;
+            camFx.dx = dx;
+            camFx.dy = dy;
+            applyCamFx();
+          },
+          punch: (scale, ox, oy) => {
+            camFx.scale = scale;
+            camFx.ox = ox;
+            camFx.oy = oy;
+            applyCamFx();
           },
         });
         attachSimulation(r, fx);

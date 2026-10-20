@@ -15,7 +15,8 @@ type Name =
   | 'launch' | 'boom' | 'bigBoom' | 'chirp' | 'pop' | 'tick' | 'win' | 'peace' | 'sting' | 'fill'
   | 'splash' | 'rumble' | 'wind' | 'rain' | 'wave' | 'fire' | 'whistle' | 'blizzard' | 'sand' | 'heat'
   | 'groan' | 'roar' | 'laser' | 'ufo' | 'skitter' | 'whoosh' | 'crash' | 'horn'
-  | 'monkey' | 'adventure' | 'kick' | 'cheer';
+  | 'monkey' | 'adventure' | 'kick' | 'cheer'
+  | 'drumroll' | 'beep' | 'go' | 'trumpet' | 'siren' | 'thunder' | 'stamp' | 'swoosh';
 
 class SoundEngine {
   private ctx: AudioContext | null = null;
@@ -110,7 +111,7 @@ class SoundEngine {
     this.start();
     const ctx = this.ctx;
     if (!ctx || !this.master || ctx.state !== 'running') return;
-    const gap: Partial<Record<Name, number>> = { boom: 70, launch: 90, chirp: 120, pop: 80, tick: 30, laser: 110 };
+    const gap: Partial<Record<Name, number>> = { boom: 70, launch: 90, chirp: 120, pop: 80, tick: 30, laser: 110, thunder: 500, swoosh: 250 };
     const now = performance.now();
     if ((now - (this.last.get(name) ?? -1e9)) < (gap[name] ?? 0)) return;
     this.last.set(name, now);
@@ -318,6 +319,50 @@ class SoundEngine {
         }
         break;
       }
+      case 'drumroll': { // a snare roll that gets louder (the build-up before a battle)
+        const n = 40;
+        for (let i = 0; i < n; i++) {
+          const d = (i / n) * 1.6;
+          this.noiseHit(ctx, t + d, { type: 'bandpass', f0: 1800, q: 0.9, peak: 0.04 + (i / n) * 0.12, attack: 0.002, release: 0.05 });
+        }
+        this.tone(ctx, t + 1.6, { type: 'sine', f0: 120, f1: 50, peak: 0.45, attack: 0.003, release: 0.35 });
+        break;
+      }
+      case 'beep': // countdown "3… 2… 1…"
+        this.tone(ctx, t, { type: 'square', f0: 660, peak: 0.06, attack: 0.005, hold: 0.09, release: 0.08 });
+        break;
+      case 'go': // "FIGHT!"
+        this.tone(ctx, t, { type: 'square', f0: 990, peak: 0.07, attack: 0.005, hold: 0.22, release: 0.15 });
+        this.tone(ctx, t, { type: 'square', f0: 1320, peak: 0.04, attack: 0.005, hold: 0.22, release: 0.15 });
+        break;
+      case 'trumpet': { // victory fanfare: "ta-ta-ta-TAAA!"
+        const notes: [number, number, number][] = [[0, 523.25, 0.08], [0.12, 523.25, 0.08], [0.24, 523.25, 0.08], [0.36, 659.25, 0.15], [0.56, 783.99, 0.1], [0.72, 1046.5, 0.7]];
+        for (const [d, f, hold] of notes) {
+          this.tone(ctx, t + d, { type: 'sawtooth', f0: f, peak: 0.075, attack: 0.015, hold, release: 0.2 });
+          this.tone(ctx, t + d, { type: 'triangle', f0: f * 2, peak: 0.03, attack: 0.015, hold, release: 0.2 });
+        }
+        this.noiseHit(ctx, t + 0.72, { type: 'highpass', f0: 5000, peak: 0.08, attack: 0.005, release: 0.8 }); // cymbal
+        break;
+      }
+      case 'siren': // a warning siren that wails up and down twice
+        for (let i = 0; i < 2; i++) {
+          this.tone(ctx, t + i * 0.55, { type: 'triangle', f0: 520, f1: 980, peak: 0.08, attack: 0.04, hold: 0.2, release: 0.28 });
+          this.tone(ctx, t + i * 0.55, { type: 'sine', f0: 260, f1: 490, peak: 0.05, attack: 0.04, hold: 0.2, release: 0.28 });
+        }
+        break;
+      case 'thunder': // crack + long rumble
+        this.noiseHit(ctx, t, { type: 'highpass', f0: 1500, peak: 0.35, attack: 0.002, release: 0.15 });
+        this.noiseHit(ctx, t + 0.05, { type: 'lowpass', f0: 600, f1: 70, peak: 0.6, attack: 0.02, hold: 0.3, release: 1.6 });
+        this.tone(ctx, t + 0.05, { type: 'sine', f0: 60, f1: 35, peak: 0.3, attack: 0.03, hold: 0.3, release: 1.2 });
+        break;
+      case 'stamp': // the big "UPSET!" / "EXTREME!" slam
+        this.tone(ctx, t, { type: 'sine', f0: 140, f1: 45, peak: 0.6, attack: 0.002, release: 0.3 });
+        this.noiseHit(ctx, t, { type: 'lowpass', f0: 2500, f1: 200, peak: 0.35, attack: 0.002, release: 0.25 });
+        this.noiseHit(ctx, t + 0.02, { type: 'highpass', f0: 4500, peak: 0.1, attack: 0.002, release: 0.6 });
+        break;
+      case 'swoosh': // something flying past fast
+        this.noiseHit(ctx, t, { type: 'bandpass', f0: 600, f1: 3200, q: 2, peak: 0.18, attack: 0.08, release: 0.3 });
+        break;
       case 'horn': // a deep ship's horn
         this.tone(ctx, t, { type: 'sawtooth', f0: 98, peak: 0.06, attack: 0.08, hold: 0.9, release: 0.4 });
         this.tone(ctx, t, { type: 'sawtooth', f0: 147, peak: 0.045, attack: 0.08, hold: 0.9, release: 0.4 });

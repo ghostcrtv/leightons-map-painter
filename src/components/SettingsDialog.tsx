@@ -17,6 +17,19 @@ export function SettingsDialog() {
       <Toggle label="Show borders" checked={s.showBorders} onChange={s.setShowBorders} />
       <Toggle label="📍 Landmarks" hint="Famous places as pins when you zoom in; tap one to see it" checked={s.showLandmarks} onChange={s.setShowLandmarks} />
       <Toggle label="Day and night" hint="Night slowly moves around the world; cities light up" checked={s.showNight} onChange={s.setShowNight} />
+      <div className="toggle action-level">
+        <span>
+          💥 Action level
+          <small className="toggle-hint">How big battles and disasters look</small>
+        </span>
+        <div className="level-chips" role="radiogroup" aria-label="Action level">
+          {(['calm', 'normal', 'epic'] as const).map((v) => (
+            <button key={v} role="radio" aria-checked={s.actionLevel === v} className={`chip${s.actionLevel === v ? ' on' : ''}`} onClick={() => s.setActionLevel(v)}>
+              {v === 'calm' ? 'Calm' : v === 'normal' ? 'Normal' : 'Epic'}
+            </button>
+          ))}
+        </div>
+      </div>
       <Toggle
         label="🤪 Crazy disasters"
         hint="Zombies, aliens, dragons, giant spiders and more can strike"

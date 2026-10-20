@@ -23,6 +23,8 @@ export interface FxHost {
   zoom(): number;
   /** Move the map a little (earthquakes). (0, 0) puts it back. */
   shake(dx: number, dy: number): void;
+  /** Zoom the whole picture by `scale` around screen point (ox, oy) — a quick camera "punch". 1 = normal. */
+  punch?(scale: number, ox: number, oy: number): void;
 }
 
 type Kind = 'puff' | 'glow' | 'dot' | 'confetti' | 'dove' | 'streak' | 'flake';
@@ -124,6 +126,21 @@ export class Effects {
     this.smolder = points.map((p) => ({ ...p, acc: this.rand() }));
     this.kick();
   }
+
+  /** Slow motion: everything runs at `factor` speed for `seconds` of real time. */
+  slowMo(seconds: number, factor = 0.35) {
+    this.slowUntil = performance.now() + seconds * 1000;
+    this.slowFactor = factor;
+  }
+  private slowUntil = 0;
+  private slowFactor = 1;
+
+  /** A quick camera punch-in toward a screen point (grows then settles back over ~0.5 s). */
+  punch(amount: number, x: number, y: number) {
+    this.punchState = { t: 0, amount, x, y };
+    this.kick();
+  }
+  private punchState: { t: number; amount: number; x: number; y: number } | null = null;
 
   /** Shake the map this frame (call every frame while it should shake). */
   shake(px: number) {
@@ -284,9 +301,26 @@ export class Effects {
     const stepDt = onlySmoke ? (now - this.lastDraw) / 1000 : dt;
     if (onlySmoke && now - this.lastDraw < (this.smolder.length || this.particles.length ? 32 : 66)) return;
     this.lastDraw = now;
-    this.step(Math.min(0.1, stepDt) * this.speed);
+    const slow = now < this.slowUntil ? this.slowFactor : 1;
+    this.step(Math.min(0.1, stepDt) * this.speed * slow);
+    this.stepPunch(Math.min(0.1, stepDt));
     this.draw();
   };
+
+  /** The camera punch runs in real time (not slowed down). */
+  private stepPunch(dt: number) {
+    const p = this.punchState;
+    if (!p || !this.host.punch) return;
+    p.t += dt;
+    const D = 0.55;
+    if (p.t >= D) {
+      this.host.punch(1, p.x, p.y);
+      this.punchState = null;
+      return;
+    }
+    const k = p.t < 0.12 ? p.t / 0.12 : 1 - (p.t - 0.12) / (D - 0.12);
+    this.host.punch(1 + p.amount * Math.sin((k * Math.PI) / 2), p.x, p.y);
+  }
 
   private step(dt: number) {
     this.shakeAmount = 0;
@@ -1239,39 +1273,45 @@ export class Jet implements Scene {
   draw(ctx: CanvasRenderingContext2D, fx: Effects) {
     if (this.t < this.delay) return;
     const { x, y, ang } = this.where(fx);
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(ang);
-    // shadow on the ground
+    drawJet(ctx, x, y, ang, this.color, 40);
+  }
+}
+
+/** A little jet facing `ang` (radians), wings in `color`, with a ground shadow `shadow` px below. */
+export function drawJet(ctx: CanvasRenderingContext2D, x: number, y: number, ang: number, color: string, shadow = 0, scale = 1) {
+  ctx.save();
+  ctx.translate(x, y);
+  if (shadow) {
     ctx.fillStyle = 'rgba(0,0,0,0.18)';
     ctx.beginPath();
-    ctx.ellipse(-6, 40, 10, 3, 0, 0, Math.PI * 2);
+    ctx.ellipse(-6, shadow, 10 * scale, 3 * scale, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#d7dde3';
-    ctx.strokeStyle = '#37474f';
-    ctx.lineWidth = 0.8;
-    ctx.beginPath();
-    ctx.moveTo(12, 0);
-    ctx.lineTo(-8, -2.2);
-    ctx.lineTo(-10, 0);
-    ctx.lineTo(-8, 2.2);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    // wings
-    ctx.fillStyle = this.color;
-    ctx.beginPath();
-    ctx.moveTo(2, 0);
-    ctx.lineTo(-5, -9);
-    ctx.lineTo(-7, -9);
-    ctx.lineTo(-3, 0);
-    ctx.lineTo(-7, 9);
-    ctx.lineTo(-5, 9);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
   }
+  ctx.rotate(ang);
+  ctx.scale(scale, scale);
+  ctx.fillStyle = '#d7dde3';
+  ctx.strokeStyle = '#37474f';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(12, 0);
+  ctx.lineTo(-8, -2.2);
+  ctx.lineTo(-10, 0);
+  ctx.lineTo(-8, 2.2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(2, 0);
+  ctx.lineTo(-5, -9);
+  ctx.lineTo(-7, -9);
+  ctx.lineTo(-3, 0);
+  ctx.lineTo(-7, 9);
+  ctx.lineTo(-5, 9);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
 }
 
 /** A warship bobbing on the sea, firing missiles at the enemy. */

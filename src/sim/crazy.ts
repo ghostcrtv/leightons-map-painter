@@ -17,7 +17,7 @@ const easeOut = (t: number) => 1 - (1 - t) ** 2;
 
 // ------------------------------------------------------------------ scenes
 
-type Gait = 'walk' | 'hop' | 'scurry' | 'fly' | 'fall' | 'march';
+type Gait = 'walk' | 'hop' | 'scurry' | 'fly' | 'fall' | 'march' | 'drift';
 
 /** An emoji moving from one map point to another. */
 export class Walker implements Scene {
@@ -62,6 +62,9 @@ export class Walker implements Scene {
       x += Math.sin(time * 37) * 2.2;
       y += Math.cos(time * 29) * 2.2;
       rot = Math.sin(time * 9) * 0.35;
+    } else if (gait === 'drift') { // parachutes: sway side to side on the way down
+      x += Math.sin(time * 2.6) * this.px * 0.35;
+      rot = Math.sin(time * 2.6) * 0.18;
     } else if (gait === 'fly') {
       y += Math.sin(time * 4) * this.px * 0.12;
     }

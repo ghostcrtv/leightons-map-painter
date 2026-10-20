@@ -365,7 +365,7 @@ export async function conflict(t: Territory, a: string, b: string, mode: Mode = 
         upset: result.upset,
         marks,
       });
-      if (!mode.silent) sound.play('win');
+      if (!mode.silent && game().actionLevel === 'calm') sound.play('win'); // Normal/Epic shows play a trumpet fanfare
     } else {
       const mid: W = [(aFront[0] + bFront[0]) / 2, (aFront[1] + bFront[1]) / 2];
       t.apply({ kind: 'peace', a, b, at: [round1(mid[0]), round1(mid[1])], marks: { [a]: m.winner, [b]: m.loser } });
@@ -398,6 +398,12 @@ export async function conflict(t: Territory, a: string, b: string, mode: Mode = 
         bSea,
         climax: apply,
         done,
+        level: game().actionLevel,
+        // The full build-up (countdown, tug-of-war, stamps) only for a single battle you're watching.
+        full: !mode.quick && !game().simAuto,
+        aFlag: flagImage(a),
+        bFlag: flagImage(b),
+        upset: result.upset,
       }),
     apply,
   );
@@ -553,7 +559,7 @@ export async function disaster(t: Territory, id: string, type?: string, mode: Mo
     undoVersion = t.version;
     if (!mode.silent) sound.play('sting');
   };
-  await show(mode, (done) => playDisaster(fx!, { type: def.id, center, pts: pts.length ? pts : [center], R, seaDir: sea, seaAt, climax: apply, done }), apply);
+  await show(mode, (done) => playDisaster(fx!, { type: def.id, center, pts: pts.length ? pts : [center], R, seaDir: sea, seaAt, climax: apply, done, level: game().actionLevel, full: !mode.quick, severity }), apply);
 
   return { kind: 'disaster', id, type: def.id, severity, powerBefore: before, powerAfter: battlePower(id), undoVersion };
 }

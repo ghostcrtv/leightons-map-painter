@@ -4,11 +4,16 @@
  * and `done` at the end.
  */
 import {
-  Cone, Cracks, Crater, type Effects, FlagPop, Hurricane, Jet, Meteor, Missile, Ring, Ship, Sun, Tank, Timeline, Tornado, Waves, type W,
+  Cone, Cracks, Crater, type Effects, type Scene, FlagPop, Hurricane, Jet, Meteor, Missile, Ring, Ship, Sun, Tank, Timeline, Tornado, Waves, type W,
 } from './effects';
 import { DISASTER_SOUND, sound } from '../audio/sound';
 import type { ConflictOutcome } from './conflict';
-import { playCrazy } from './crazy';
+import { playCrazy, Walker } from './crazy';
+import {
+  Countdown, Crumble, Darken, Dogfight, Flash, FlagRaise, Frost, Lightning, RisingWater, Stamp, TugBar, Tumbleweed, Warning, Whirl, impactBlast,
+  type ActionLevel,
+} from './action';
+import { severityWord } from './disasters';
 
 export interface BattleShow {
   /** Points on each side's land near the fighting (world units). */
@@ -34,13 +39,94 @@ export interface BattleShow {
   bSea?: W[];
   climax: () => void;
   done: () => void;
+  /** How big the show is (Settings → Action level). Missing = calm (the original show). */
+  level?: ActionLevel;
+  /** A full show (not inside a fast year / world war): countdown, tug-of-war bar, stamps. */
+  full?: boolean;
+  aFlag?: HTMLImageElement | null;
+  bFlag?: HTMLImageElement | null;
+  upset?: boolean;
 }
 
 export const BATTLE_FIGHT_SECONDS = 2.7;
 
+/** Battle show: with Normal/Epic action, a countdown while both armies march to the front first. */
 export function playBattle(fx: Effects, s: BattleShow) {
+  const level = s.level ?? 'calm';
+  if (level === 'calm' || !s.full) {
+    playBattleMain(fx, s, level);
+    return;
+  }
+  sound.play('drumroll');
+  marchArmies(fx, s, 2.2);
+  fx.add(new Countdown(() => playBattleMain(fx, s, level)));
+}
+
+/** Little soldiers march from deep inside each country toward the front, behind their flag. */
+function marchArmies(fx: Effects, s: BattleShow, life: number) {
+  const sides: [W[], W | undefined, HTMLImageElement | null | undefined][] = [
+    [s.aPts, s.bPts[0], s.aFlag],
+    [s.bPts, s.aPts[0], s.bFlag],
+  ];
+  for (const [pts, enemy, flag] of sides) {
+    const front = pts[0];
+    if (!front || !enemy) continue;
+    // March in from well behind the front line (away from the enemy), stopping just short of it.
+    const [fx0, fy0] = fx.screen(front);
+    const [ex, ey] = fx.screen(enemy);
+    const len = Math.hypot(fx0 - ex, fy0 - ey) || 1;
+    const ux = (fx0 - ex) / len;
+    const uy = (fy0 - ey) / len;
+    const back = fx.host.toWorld(fx0 + ux * 150, fy0 + uy * 150);
+    const stop = fx.host.toWorld(fx0 + ux * 22, fy0 + uy * 22);
+    for (let i = 0; i < 7; i++) {
+      const row = Math.floor(i / 3);
+      const col = (i % 3) - 1;
+      const from = fx.offset(back, col * 12 - row * 6, col * 6 + row * 12);
+      const to = fx.offset(stop, col * 12 - row * 6, col * 6 + row * 12);
+      fx.add(new Walker(from, to, life, '💂', 16, { gait: 'march', noFlip: true, delay: row * 0.1 }));
+    }
+    fx.add(new MarchFlag(fx.offset(back, 22, -10), fx.offset(stop, 22, -10), life, flag ?? null));
+  }
+}
+
+/** A small flag on a pole, carried along. */
+class MarchFlag implements Scene {
+  private t = 0;
+  constructor(
+    private from: W,
+    private to: W,
+    private life: number,
+    private img: HTMLImageElement | null,
+  ) {}
+  update(dt: number) {
+    this.t += dt;
+    return this.t < this.life;
+  }
+  draw(ctx: CanvasRenderingContext2D, fx: Effects) {
+    const k = Math.min(1, this.t / this.life);
+    const [ax, ay] = fx.screen(this.from);
+    const [bx, by] = fx.screen(this.to);
+    const x = ax + (bx - ax) * k;
+    const y = ay + (by - ay) * k - Math.abs(Math.sin(this.t * 10)) * 2;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, this.t / 0.2, (this.life - this.t) / 0.3);
+    ctx.strokeStyle = '#eeeeee';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, y + 12);
+    ctx.lineTo(x, y - 18);
+    ctx.stroke();
+    if (this.img?.complete && this.img.naturalWidth) ctx.drawImage(this.img, x + 1, y - 18 + Math.sin(this.t * 8) * 1.2, 22, 15);
+    ctx.restore();
+  }
+}
+
+function playBattleMain(fx: Effects, s: BattleShow, level: ActionLevel) {
   const fight = BATTLE_FIGHT_SECONDS;
-  const tl = new Timeline(s.outcome === 'peace' ? 4.6 : 4.8, s.done);
+  const fancy = level !== 'calm';
+  const epic = level === 'epic';
+  const tl = new Timeline((s.outcome === 'peace' ? 4.6 : 4.8) + (level !== 'calm' && s.full ? 0.9 : 0), s.done);
   const fire = (fromA: boolean, k = 1.25, to?: W, dur?: number) => {
     const from = fx.pick(fromA ? s.aPts : s.bPts);
     const target = to ?? fx.pick(fromA ? s.bPts : s.aPts);
@@ -61,6 +147,31 @@ export function playBattle(fx: Effects, s: BattleShow) {
     if (s.bSea?.length) fx.add(new Ship(s.bSea[0], s.aPts, fight, s.bColor, aFront[0] >= s.bSea[0][0] ? 1 : -1));
   }
 
+  const mid0: W = midpoint(s.aPts, s.bPts);
+  if (fancy) {
+    fx.add(new Dogfight(mid0, s.aColor, s.bColor, fight, 0.2));
+    if (s.full) {
+      fx.add(new TugBar({ img: s.aFlag ?? null, color: s.aColor }, { img: s.bFlag ?? null, color: s.bColor }, s.outcome === 'peace' ? null : s.winner ?? null, fight + 0.85, fight + 3.6, s.aFire));
+    }
+    tl.every(0.2, fight, epic ? 0.22 : 0.4, () => {
+      const p = fx.pick([...s.aPts, ...s.bPts]);
+      fx.explosion(fx.offset(p, fx.between(-16, 16), fx.between(-14, 14)), fx.between(0.6, 1.1));
+    });
+  }
+  if (epic && aFront && bFront) {
+    // helicopters hover in from both sides
+    const heli = (from: W, to: W, d: number) => fx.add(new Walker(fx.offset(from, 0, -50), fx.offset(to, 0, -60), fight * 0.9, '🚁', 24, { gait: 'fly', delay: d }));
+    heli(s.aPts[s.aPts.length - 1] ?? aFront, aFront, 0.3);
+    heli(s.bPts[s.bPts.length - 1] ?? bFront, bFront, 0.6);
+    // paratroopers drop in over the land being taken
+    if (s.outcome !== 'peace') {
+      for (let i = 0; i < 6; i++) {
+        const land = fx.offset(s.target, fx.between(-0.7, 0.7) * Math.max(30, s.targetPx), fx.between(-0.5, 0.5) * Math.max(24, s.targetPx));
+        fx.add(new Walker(fx.offset(land, fx.between(-20, 20), -150), land, fx.between(1.6, 2.1), '🪂', 20, { gait: 'drift', noFlip: true, delay: fight - 1.5 + i * 0.15 }));
+      }
+    }
+  }
+
   // The fight: missiles both ways, more from the stronger side.
   tl.every(0, fight, 0.16, () => fire(fx.rand() < s.aFire));
   // Shelling along the front.
@@ -78,6 +189,10 @@ export function playBattle(fx: Effects, s: BattleShow) {
     tl.at(fight + 0.35, () => {
       s.climax();
       fx.doves(mid, 9);
+      if (fancy) {
+        fx.add(new Walker(mid, fx.offset(mid, 0, -46), 2.4, '🏳️', 44, { gait: 'fly', noFlip: true }));
+        if (s.full) fx.add(new Stamp('PEACE!', '#90caf9', 0.2, 1.6));
+      }
     });
   } else {
     const winA = s.winner === 'a';
@@ -93,11 +208,24 @@ export function playBattle(fx: Effects, s: BattleShow) {
         fire(winA, k, to, 0.75);
       });
     }
+    if (epic && s.full) tl.at(fight - 0.15, () => fx.slowMo(0.9, 0.35)); // the final barrage in slow motion
     tl.at(fight + 0.85, () => {
       s.climax();
       const colors = [...s.winnerColors, '#ffd34d', '#ffffff'];
       fx.add(new Ring(s.target, 10, Math.max(60, s.targetPx * 1.1), 0.7, 'rgba(255,255,255,0.9)', 4));
-      fx.add(new FlagPop(s.target, s.winnerFlag, s.winnerColors[0] ?? '#ffd34d', 1.6));
+      if (fancy) {
+        fx.add(new FlagRaise(s.target, s.winnerFlag, s.winnerColors[0] ?? '#ffd34d', 2.8));
+        sound.play('trumpet');
+        fx.explosion(s.target, 1.6);
+        if (epic) {
+          const [px, py] = fx.screen(s.target);
+          fx.punch(0.1, px, py);
+        }
+        if (s.full) {
+          const text = s.upset ? 'UPSET!' : s.outcome === 'conquest' ? 'CONQUERED!' : 'VICTORY!';
+          fx.add(new Stamp(text, s.upset ? '#ff5252' : s.outcome === 'conquest' ? '#ffd34d' : '#69f0ae', 0.35));
+        }
+      } else fx.add(new FlagPop(s.target, s.winnerFlag, s.winnerColors[0] ?? '#ffd34d', 1.6));
       fx.confetti(s.target, colors);
       if (s.outcome === 'conquest') {
         for (let i = 0; i < 3; i++) {
@@ -132,11 +260,29 @@ export interface DisasterShow {
   seaAt?: W | null;
   climax: () => void;
   done: () => void;
+  level?: ActionLevel;
+  /** A full show: a warning first (siren, darker sky, ⚠️) and the EXTREME stamp. */
+  full?: boolean;
+  /** 0–0.6: how bad it is (bigger = more of everything). */
+  severity?: number;
 }
 
 export const DISASTER_SECONDS = 3.8;
+const WARNING_SECONDS = 1.1;
 
+/** Disaster show: with Normal/Epic action, a warning first (darker sky, siren, ⚠️). */
 export function playDisaster(fx: Effects, s: DisasterShow) {
+  const level = s.level ?? 'calm';
+  if (level === 'calm' || !s.full) {
+    playDisasterMain(fx, s, level);
+    return;
+  }
+  fx.add(new Darken(WARNING_SECONDS + DISASTER_SECONDS + 0.2));
+  fx.add(new Warning(s.center, WARNING_SECONDS));
+  fx.add(new Timeline(WARNING_SECONDS, () => playDisasterMain(fx, s, level)));
+}
+
+function playDisasterMain(fx: Effects, s: DisasterShow, level: ActionLevel) {
   const R = s.R;
   const tl = new Timeline(DISASTER_SECONDS, s.done);
   for (const name of DISASTER_SOUND[s.type] ?? []) sound.play(name);
@@ -297,8 +443,124 @@ export function playDisaster(fx: Effects, s: DisasterShow) {
       else tl.every(0, 2.4, 0.1, () => fx.explosion(any(), 0.7));
     }
   }
+  if (level !== 'calm') disasterExtras(fx, tl, s, climaxAt < 99 ? climaxAt : 1.0, level);
   if (climaxAt < 99) tl.at(climaxAt, s.climax);
   fx.add(tl);
+}
+
+/** More action for each disaster (Normal / Epic), scaled by how severe it is. */
+function disasterExtras(fx: Effects, tl: Timeline, s: DisasterShow, climaxAt: number, level: ActionLevel) {
+  const R = s.R;
+  const epic = level === 'epic';
+  const sev = s.severity ?? 0.15;
+  const big = Math.min(1.8, 0.8 + sev * 2.2) * (epic ? 1.25 : 1);
+  // creatures grow with the country's size on screen, so they don't look like specks on Canada
+  const e = Math.max(0.9, Math.min(1.8, R / 80));
+  const n = (k: number) => Math.max(1, Math.round(k * big));
+  const any = () => fx.pick(s.pts.length ? s.pts : [s.center]);
+  const around = (spread = 1): W => fx.offset(s.center, fx.between(-1, 1) * R * spread, fx.between(-0.8, 0.8) * R * spread);
+  const away = (p: W, dist: number): W => {
+    const [cx, cy] = fx.screen(s.center);
+    const [px, py] = fx.screen(p);
+    const a = Math.atan2(py - cy, px - cx) + fx.between(-0.4, 0.4);
+    return fx.offset(p, Math.cos(a) * dist, Math.sin(a) * dist);
+  };
+  switch (s.type) {
+    case 'earthquake':
+      s.pts.slice(0, n(4)).forEach((p, i) => fx.add(new Crumble(p, 0.15 + i * 0.12)));
+      tl.every(0.15, 2.1, 0.016, () => fx.shake(4 * big));
+      break;
+    case 'volcano': {
+      const top = fx.offset(s.center, 0, -34);
+      tl.every(0.6, 3.4, 0.03 / big, () => // lava running down the slopes
+        fx.spawn(fx.offset(top, fx.between(-6, 6), 8), {
+          kind: 'glow', color: fx.pick(['#ff3d00', '#ff6d00', '#ffab00']), size: fx.between(4, 7), size1: 2, life: fx.between(1.4, 2.2),
+          vx: fx.between(-70, 70), vy: fx.between(18, 50), drag: 0.6, fadeIn: 0,
+        }),
+      );
+      for (const d of epic ? [1.2, 1.9, 2.7] : [1.4, 2.5]) tl.at(d, () => fx.add(new Lightning(fx.offset(top, fx.between(-50, 50), -fx.between(60, 100)))));
+      break;
+    }
+    case 'tsunami': {
+      const dir = s.seaDir ?? [1, 0];
+      const sea = s.seaAt ?? fx.offset(s.center, dir[0] * R * 1.2, dir[1] * R * 1.2);
+      fx.add(new Walker(fx.offset(sea, dir[0] * 40, dir[1] * 40), s.center, 1.7, '🏄', 30 * e, { gait: 'hop', delay: 0.6 }));
+      for (let i = 0; i < n(3); i++) fx.add(new Walker(fx.offset(sea, fx.between(-40, 40), fx.between(-30, 30)), around(0.6), fx.between(1.4, 2), fx.pick(['⛵', '🚤', '🛟']), 20 * e, { spin: fx.between(-4, 4), delay: 0.9 + i * 0.15, noFlip: true }));
+      break;
+    }
+    case 'hurricane':
+      fx.add(new Whirl(() => s.center, ['🐄', '🚗', '🏠', '🌴', '🪵', '🐑'], n(7), Math.max(50, Math.min(170, R * 0.75)), 3.6, 3.2, e));
+      for (let i = 0; i < n(3); i++) tl.at(0.6 + i * 0.8, () => fx.add(new Lightning(around(0.8))));
+      break;
+    case 'tornado': {
+      const from = fx.offset(s.center, -R * 0.7, R * 0.15);
+      const to = fx.offset(s.center, R * 0.7, -R * 0.1);
+      const at = (t: number): W => {
+        const k = Math.max(0, Math.min(1, t / 3.4));
+        return [from[0] + (to[0] - from[0]) * k, from[1] + (to[1] - from[1]) * k];
+      };
+      fx.add(new Whirl((t) => fx.offset(at(t), 0, -30), ['🐄', '🚗', '🏠', '🪵', '🐑'], n(5), 38 * e, 3.4, 4, e));
+      if (epic) tl.at(1.0, () => fx.add(new Lightning(around(0.9))));
+      break;
+    }
+    case 'flood':
+      fx.add(new RisingWater(s.center, R, 3.7));
+      for (let i = 0; i < n(5); i++) fx.add(new Walker(around(0.6), around(0.6), fx.between(2.4, 3.2), fx.pick(['🦆', '🛶', '🦆', '🐸']), 20 * e, { gait: 'fly', delay: 0.6 + i * 0.12 }));
+      if (epic) tl.at(1.2, () => fx.add(new Lightning(around(0.8))));
+      break;
+    case 'wildfire': {
+      // animals running away from the fire
+      for (let i = 0; i < n(5); i++) {
+        const p = any();
+        fx.add(new Walker(p, away(p, fx.between(70, 120)), fx.between(1.3, 1.8), fx.pick(['🦌', '🐇', '🦊', '🐿️', '🦔']), 20 * e, { gait: 'hop', delay: 0.4 + i * 0.15 }));
+      }
+      // a water bomber drops water on the fire
+      const a = fx.offset(s.center, -R * 1.3, -R * 0.45);
+      const b = fx.offset(s.center, R * 1.3, -R * 0.3);
+      fx.add(new Walker(a, b, 2.4, '🛩️', 30 * e, { gait: 'fly', delay: 1.0, facesLeft: false }));
+      tl.every(1.5, 3.1, 0.02, (t) => {
+        const k = (t - 1.0) / 2.4;
+        const p: W = [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
+        fx.spawn(fx.offset(p, fx.between(-6, 6), 12), { kind: 'dot', color: fx.pick(['#4fc3f7', '#81d4fa', '#e1f5fe']), size: 2.2, size1: 1, life: 0.9, vy: fx.between(90, 160), vx: fx.between(-10, 10), fadeIn: 0 });
+      });
+      break;
+    }
+    case 'drought':
+      for (let i = 0; i < n(3); i++) {
+        const y = fx.between(-0.6, 0.6) * R;
+        fx.add(new Tumbleweed(fx.offset(s.center, -R * 1.2, y), fx.offset(s.center, R * 1.2, y + fx.between(-20, 20)), fx.between(2.4, 3.2), 0.2 + i * 0.5));
+      }
+      for (let i = 0; i < n(3); i++) {
+        const p = any();
+        fx.add(new Walker(p, p, 3.2, '🌵', 22 * e, { gait: 'hop', noFlip: true, delay: 0.5 + i * 0.3 }));
+      }
+      break;
+    case 'blizzard':
+      fx.add(new Frost(s.center, R, 3.8));
+      for (let i = 0; i < n(2); i++) {
+        const p = around(0.5);
+        fx.add(new Walker(p, fx.offset(p, fx.between(40, 80), 0), 2.6, '🐧', 24 * e, { gait: 'walk', delay: 0.5 + i * 0.4 }));
+      }
+      fx.add(new Walker(any(), any(), 3.2, '⛄', 26 * e, { gait: 'hop', noFlip: true, delay: 1.0 }));
+      break;
+    case 'sandstorm':
+      for (let i = 0; i < n(2); i++) {
+        const y = fx.between(-0.4, 0.4) * R;
+        fx.add(new Walker(fx.offset(s.center, -R * 0.9, y), fx.offset(s.center, R * 0.9, y), 3.2, '🐫', 28 * e, { gait: 'walk', delay: i * 0.6 }));
+      }
+      break;
+    case 'meteor':
+      tl.at(0.95, () => {
+        fx.add(new Flash(0.5, '255,244,214', 0.9));
+        impactBlast(fx, s.center, R, big);
+        if (epic) {
+          const [px, py] = fx.screen(s.center);
+          fx.punch(0.12, px, py);
+        }
+      });
+      break;
+  }
+  if (s.full && severityWord(sev) === 'Extreme') tl.at(climaxAt + 0.25, () => fx.add(new Stamp('EXTREME!', '#ff5252')));
 }
 
 /** New land rising from the sea: golden sparkles, rings and a splash. ~2.4 s. */

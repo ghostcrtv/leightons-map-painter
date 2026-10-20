@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.4.0 — 2026-10-19 — Epic action
+
+- New setting: Action level (Calm / Normal / Epic, default Epic). Calm = the original shows.
+- Battles (watched one at a time): drumroll + "3, 2, 1, FIGHT!", soldiers marching to the front
+  with flags, tug-of-war bar, dogfighting jets, explosions along the front; Epic adds helicopters,
+  paratroopers, slow-motion final barrage and a camera punch. Finish: winner's flag raised on the
+  captured land, trumpet fanfare, VICTORY! / CONQUERED! / UPSET! / PEACE! stamps (white flag for peace).
+- Disasters: warning first (darker sky, siren, flashing ⚠️), then per-disaster extras — crumbling
+  houses, lava and volcanic lightning, surfer and boats in tsunamis, whirling cows/cars/houses in
+  hurricanes and tornadoes, rising water with ducks, fleeing animals and a water bomber, tumbleweeds,
+  frost and penguins, camels, meteor flash + shockwave. More stuff for more severe disasters, and
+  an EXTREME! stamp. Crazy disasters get the warning and stamp too.
+- Inside a simulated year / auto battles the extras play but without the countdown, bar and stamps.
+- New sounds: drumroll, countdown beeps, trumpet, siren, thunder, stamp, swoosh.
+
 ## 1.3.1 — 2026-10-19 — Hints for the grown-ups
 
 - Two helper search words fly to the hidden secrets without finding them (see CLAUDE.md → Secrets).

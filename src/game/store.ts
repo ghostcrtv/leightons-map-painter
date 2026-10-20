@@ -80,6 +80,8 @@ interface GameState {
   showNight: boolean;
   /** Zombies, aliens and other crazy disasters (Settings). */
   crazyDisasters: boolean;
+  /** How big battle and disaster shows are (Settings). */
+  actionLevel: 'calm' | 'normal' | 'epic';
   /** Landmark pins on the map (Settings). */
   showLandmarks: boolean;
   /** The open landmark card: which one, and where its spot is on screen. */
@@ -126,6 +128,7 @@ interface GameState {
   setShowCapitals(v: boolean): void;
   setShowNight(v: boolean): void;
   setCrazyDisasters(v: boolean): void;
+  setActionLevel(v: 'calm' | 'normal' | 'epic'): void;
   setShowLandmarks(v: boolean): void;
   setLandmarkCard(v: { id: string; x: number; y: number } | null): void;
   setSecretPop(v: 'monkey' | 'island' | null): void;
@@ -176,6 +179,7 @@ export const useGame = create<GameState>((set) => ({
   showCapitals: readSetting('showCapitals', true),
   showNight: readSetting('showNight', false),
   crazyDisasters: readSetting('crazyDisasters', false),
+  actionLevel: readSetting<'calm' | 'normal' | 'epic'>('actionLevel', 'epic'),
   showLandmarks: readSetting('showLandmarks', true),
   landmarkCard: null,
   secretPop: null,
@@ -231,6 +235,10 @@ export const useGame = create<GameState>((set) => ({
   },
   setLandmarkCard: (landmarkCard) => set({ landmarkCard }),
   setSecretPop: (secretPop) => set({ secretPop }),
+  setActionLevel: (actionLevel) => {
+    writeSetting('actionLevel', actionLevel);
+    set({ actionLevel });
+  },
   setCrazyDisasters: (crazyDisasters) => {
     writeSetting('crazyDisasters', crazyDisasters);
     set({ crazyDisasters });

@@ -259,6 +259,18 @@ the wheels in the Actions menu stay for manual decisions.
 - Data fix: the Maldives area (inside-out polygons) — `prepare-data.mjs` now measures polygon
   by polygon (`realArea`); a test stops any country exceeding Russia.
 
+## Action level (src/sim/action.ts) — added 2026-10-19
+
+- Setting `actionLevel` ('calm' | 'normal' | 'epic', default epic). Calm = the original shows.
+- `playBattle` / `playDisaster` (shows.ts) take `level`, `full` (= a single watched show, not inside
+  a year or auto battles: countdown / warning, TugBar, stamps) and for disasters `severity`
+  (more debris for worse ones; EXTREME! stamp). Extras live in `disasterExtras` and the battle
+  code after the tanks/jets; scenes in action.ts (Countdown, Stamp, Darken, Warning, Flash,
+  TugBar, Dogfight, FlagRaise, Lightning, Whirl, Crumble, Tumbleweed, Frost, RisingWater, impactBlast).
+- Effects engine: `fx.slowMo(seconds, factor)` and `fx.punch(amount, x, y)` (CSS scale on both
+  canvases via the host's `punch`, combined with shake in MapView `applyCamFx`).
+- Disaster creature emoji scale with the country's size on screen (`e` in disasterExtras).
+
 ## Crazy disasters and the secret (src/sim/crazy.ts)
 
 - Crazy disasters are normal `DisasterDef`s with `crazy: true` (disasters.ts), off unless the

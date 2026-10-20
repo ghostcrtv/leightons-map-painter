@@ -1023,3 +1023,6 @@ button.brand:active { transform: scale(0.98); }
 }
 @keyframes secret-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes island-bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-8px) rotate(3deg); } }
+.action-level { cursor: default; }
+.level-chips { display: flex; gap: 6px; flex-shrink: 0; }
+.level-chips .chip { min-height: 40px; padding: 0 12px; }
