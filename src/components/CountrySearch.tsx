@@ -44,7 +44,13 @@ export function CountrySearch() {
         spellCheck={false}
         onChange={(e) => {
           // Secrets: some words play a little scene.
-          const secret = { titanic: playTitanic, messi: playSoccer }[e.target.value.trim().toLowerCase()];
+          const secret = {
+            titanic: playTitanic,
+            messi: playSoccer,
+            // Grown-ups' helpers: fly to the hidden monkey / island (without finding them).
+            '/monkeyleighton': () => mapController.flyToSecret('monkey'),
+            '/mysteryislandleighton': () => mapController.flyToSecret('island'),
+          }[e.target.value.trim().toLowerCase()];
           if (secret) {
             setQuery('');
             setOpen(false);

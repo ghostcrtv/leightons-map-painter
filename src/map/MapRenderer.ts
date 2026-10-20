@@ -799,6 +799,25 @@ export class MapRenderer {
     }
   }
 
+  /**
+   * Helper for the grown-ups ("/monkeyLeighton", "/mysteryislandLeighton" in the search box):
+   * fly in close enough to SEE the secret, somewhere near the middle of the screen (not exactly
+   * in the centre, so there's still a little looking to do). Doesn't tap it.
+   */
+  flyToSecret(kind: SecretKind) {
+    const s = this.secretList().find((x) => x.kind === kind);
+    if (!s) return;
+    const scale = this.limits.minScale * Math.min(300, SECRET_ZOOM[kind] * 1.2);
+    const inner = {
+      width: this.view.width - this.insets.left - this.insets.right,
+      height: this.view.height - this.insets.top - this.insets.bottom,
+    };
+    // Where on screen the secret ends up: within the middle half, at a random spot.
+    const sx = this.insets.left + inner.width * (0.25 + Math.random() * 0.5);
+    const sy = this.insets.top + inner.height * (0.3 + Math.random() * 0.4);
+    this.animateTo(this.constrained({ scale, x: sx - s.x * scale, y: sy - s.y * scale }), 900);
+  }
+
   /** A hidden thing under a screen point (only when it can be seen). */
   secretAt(sx: number, sy: number): SecretKind | null {
     const z = this.zoomRelative();

@@ -20,6 +20,8 @@ export function attachMap(r: MapRenderer | null, flags: FlagLibrary | null) {
 
 export const mapController = {
   zoomIn: () => renderer?.zoomStep(2),
+  /** Grown-ups' helper: fly to a hidden secret so it's on screen (see MapRenderer.flyToSecret). */
+  flyToSecret: (kind: 'monkey' | 'island') => renderer?.flyToSecret(kind),
   /** Where a landmark's real spot is on screen right now. */
   landmarkScreen: (id: string) => renderer?.landmarkScreen(id) ?? null,
   zoomOut: () => renderer?.zoomStep(0.5),

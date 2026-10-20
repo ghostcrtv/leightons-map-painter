@@ -282,6 +282,9 @@ the wheels in the Actions menu stay for manual decisions.
 - The Impossible Island: always at Point Nemo (48.8767 S, 123.3933 W), visible from 90× zoom,
   drawn as a speck of sand + palm. Tap → "You found The Impossible Island!" + 'adventure' sound.
 - Taps on secrets are checked first in MapView's tap handler (`renderer.secretAt`).
+- Grown-ups' helpers (search box, any capitals): "/monkeyLeighton" and "/mysteryislandLeighton"
+  fly in close enough to see the monkey / island (random spot in the middle of the screen) via
+  `renderer.flyToSecret` — they do NOT trigger the "found" pop-up.
 
 ## Landmarks (src/data/landmarks.ts)
 

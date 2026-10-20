@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.1 — 2026-10-19 — Hints for the grown-ups
+
+- Two helper search words fly to the hidden secrets without finding them (see CLAUDE.md → Secrets).
+
 ## 1.3.0 — 2026-10-19 — More secrets
 
 - Three new hidden surprises (see CLAUDE.md → "Secrets"; deliberately not in Help).
