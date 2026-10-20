@@ -524,7 +524,27 @@ export class MapRenderer {
   /** Something changed that needs a sharp redraw. */
   invalidate() {
     this.needsFull = true;
+    if (this.redrawGap > 0) {
+      // Fast World War: many changes a second — redraw at most every `redrawGap` ms.
+      const wait = this.lastFullAt + this.redrawGap - performance.now();
+      if (wait > 0) {
+        if (!this.gapTimer) this.gapTimer = window.setTimeout(() => {
+          this.gapTimer = 0;
+          this.requestFrame();
+        }, wait);
+        return;
+      }
+    }
     this.requestFrame();
+  }
+
+  private redrawGap = 0;
+  private gapTimer = 0;
+  private lastFullAt = 0;
+  /** Limit full redraws to one every `ms` (0 = no limit). */
+  setRedrawGap(ms: number) {
+    this.redrawGap = ms;
+    if (!ms) this.invalidate();
   }
 
   private requestFrame() {
@@ -594,6 +614,7 @@ export class MapRenderer {
 
   private drawFull() {
     const t0 = performance.now();
+    this.lastFullAt = t0;
     this.drawScene(this.ctx, this.cam, this.view, this.dpr, true);
     this.lastFullMs = performance.now() - t0;
     this.needsFull = false;

@@ -1026,3 +1026,63 @@ button.brand:active { transform: scale(0.98); }
 .action-level { cursor: default; }
 .level-chips { display: flex; gap: 6px; flex-shrink: 0; }
 .level-chips .chip { min-height: 40px; padding: 0 12px; }
+
+/* World War: results ticker (right side) */
+.war-ticker {
+  position: absolute; z-index: 25; right: 12px; top: calc(84px + var(--safe-top)); width: 232px;
+  max-height: calc(100% - 200px - var(--safe-top) - var(--safe-bottom));
+  display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; pointer-events: none;
+  background: var(--panel); border: 1px solid var(--panel-border); box-shadow: var(--shadow);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+.tk-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px 8px; border-bottom: 1px solid var(--panel-border); }
+.tk-left { font-family: var(--font-display); font-size: 40px; line-height: 1; color: var(--gold); }
+.tk-label { font-size: 12px; line-height: 1.2; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 800; }
+.tk-list {
+  list-style: none; margin: 0; padding: 6px 8px 10px; overflow: hidden; flex: 1;
+  -webkit-mask-image: linear-gradient(to bottom, #000 75%, transparent); mask-image: linear-gradient(to bottom, #000 75%, transparent);
+}
+.tk-row { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 10px; animation: tk-in 0.35s ease-out; font-size: 12.5px; }
+.tk-row.elim { background: rgba(255, 82, 82, 0.13); }
+.tk-row.event { color: #d7e3f4; }
+.tk-row + .tk-row { margin-top: 3px; }
+.tk-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.tk-vs { font-size: 13px; }
+.tk-emoji { width: 22px; text-align: center; font-size: 16px; }
+.tk-flag { position: relative; flex: none; width: 34px; height: 25px; border-radius: 4px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+.tk-flag img, .tk-flag i { display: block; width: 100%; height: 100%; object-fit: cover; background: #8b95a1; }
+.tk-flag.win { outline: 2px solid var(--gold); outline-offset: 1px; }
+.tk-flag.lose img { opacity: 0.55; filter: grayscale(0.5); }
+.tk-flag.out img { opacity: 0.6; filter: grayscale(0.7); }
+.tk-cross { position: absolute; left: -4px; right: -4px; top: 50%; height: 3px; margin-top: -1.5px; background: #ff3b3b; transform: rotate(-30deg); box-shadow: 0 0 2px rgba(0,0,0,0.6); }
+@keyframes tk-in { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: none; } }
+@media (max-width: 600px) {
+  .war-ticker { width: 150px; top: calc(232px + var(--safe-top)); max-height: calc(100% - 330px - var(--safe-top) - var(--safe-bottom)); }
+  .war-ticker .tk-text { display: none; }
+  .tk-left { font-size: 30px; }
+  .tk-flag { width: 30px; height: 22px; }
+}
+/* While the war runs, the result card and country panel make room for the ticker */
+.app:has(.war-ticker) .country-panel, .app:has(.war-ticker) .panel-chip { display: none; }
+
+/* World War: big announcements */
+.war-milestone { position: fixed; inset: 0; z-index: 55; display: grid; place-items: center; pointer-events: none; background: radial-gradient(circle, rgba(5,10,25,0.55), rgba(5,10,25,0.15) 70%); animation: fade-in 0.25s ease-out; }
+.wm-card { max-width: min(92vw, 640px); padding: 18px 24px 20px; text-align: center; animation: wm-slam 0.45s cubic-bezier(.2,1.6,.4,1); }
+.wm-title {
+  margin: 0; font-family: var(--font-display); font-weight: 400; font-size: clamp(38px, 8vw, 76px); line-height: 1.05; color: var(--gold);
+  -webkit-text-stroke: 2.5px #2a1e00; text-shadow: 0 5px 0 #2a1e00, 0 10px 30px rgba(0,0,0,0.6);
+}
+.wm-sub { margin: 12px 0 0; font-size: clamp(15px, 2.6vw, 20px); font-weight: 800; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,0.8); }
+.wm-flags { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 14px; margin-top: 16px; }
+.wm-flag { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; animation: wm-flag 0.4s backwards cubic-bezier(.2,1.5,.4,1); }
+.wm-flag img, .wm-flag i { display: block; width: 72px; height: 54px; object-fit: cover; border-radius: 6px; border: 2px solid #fff; box-shadow: 0 6px 16px rgba(0,0,0,0.5); background: #8b95a1; }
+.wm-flag small { max-width: 96px; font-size: 13px; font-weight: 800; color: #fff; text-shadow: 0 1px 4px #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wm-flags.vs { gap: 70px; }
+.wm-flags.vs .wm-flag img { width: 120px; height: 90px; }
+.wm-vs { position: absolute; right: -54px; top: 26px; font-family: var(--font-display); font-weight: 400; font-size: 34px; color: #ff5252; -webkit-text-stroke: 1.5px #2a0000; }
+.wm-flags.big .wm-flag img { width: 180px; height: 135px; border-width: 4px; border-color: var(--gold); }
+.wm-flags.big .wm-flag small { display: none; }
+.wm-crown { display: block; font-size: 72px; line-height: 1; animation: wm-crown 1.2s ease-in-out infinite alternate; }
+@keyframes wm-slam { from { transform: scale(2.2); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes wm-flag { from { transform: translateY(20px) scale(0.6); opacity: 0; } }
+@keyframes wm-crown { from { transform: translateY(0) rotate(-6deg); } to { transform: translateY(-10px) rotate(6deg); } }

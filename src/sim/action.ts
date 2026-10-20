@@ -587,3 +587,43 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.arcTo(x, y, x + w, y, rr);
   ctx.closePath();
 }
+
+/** A quick label over the battle site in fast shows: winner's flag + "WINS!" / "CONQUERS!". ~1.5 s. */
+export class ResultTag implements Scene {
+  private t = 0;
+  constructor(
+    private at: W,
+    private img: HTMLImageElement | null,
+    private text: string,
+    private color = '#ffd34d',
+    private life = 1.5,
+  ) {}
+  update(dt: number) {
+    this.t += dt;
+    return this.t < this.life;
+  }
+  draw(ctx: CanvasRenderingContext2D, fx: Effects) {
+    const [x, y0] = fx.screen(this.at);
+    const pop = easeOut(clamp01(this.t / 0.2));
+    const y = y0 - 34 - this.t * 14;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, (this.life - this.t) / 0.35);
+    ctx.translate(x, y);
+    ctx.scale(0.5 + 0.5 * pop, 0.5 + 0.5 * pop);
+    ctx.font = `22px ${FONT}`;
+    const tw = ctx.measureText(this.text).width;
+    const w = 40 + 8 + tw + 18;
+    ctx.fillStyle = 'rgba(16,19,28,0.82)';
+    roundRect(ctx, -w / 2, -18, w, 36, 18);
+    ctx.fill();
+    ctx.strokeStyle = this.color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    if (this.img?.complete && this.img.naturalWidth) ctx.drawImage(this.img, -w / 2 + 8, -12, 32, 24);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = this.color;
+    ctx.fillText(this.text, -w / 2 + 48, 1);
+    ctx.restore();
+  }
+}

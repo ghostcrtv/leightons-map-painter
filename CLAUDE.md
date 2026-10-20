@@ -271,6 +271,17 @@ the wheels in the Actions menu stay for manual decisions.
   canvases via the host's `punch`, combined with shake in MapView `applyCamFx`).
 - Disaster creature emoji scale with the country's size on screen (`e` in disasterExtras).
 
+## World War (runner.ts `startWorldWar`) — 2026-10-19
+
+- Ticker (`warTicker` in store, newest first, max 60) → `WarTicker`; milestones `WAR_MILESTONES`
+  → `warMilestone` → `WarMilestone` overlay (also the champion's crowning). ~10% of turns are a
+  `warEvent` (disaster / alliance / rebellion) while > 5 countries are left. The final battle
+  (2 left) is never silent. `renderer.setRedrawGap(500)` during silent battles.
+- NEVER `arr.push(...bigArray)` with map cells (stack overflow on huge empires) — use `append`.
+- Captured land shape: `biteShape` in regions.ts — wavy outline (`edge(θ)` = 1 + random waves,
+  lookup table), covered by a core circle + edge/bridge circles per ray; the size search uses
+  the fast outline test, the final cells use the circles (so `shapeIsExact` still works).
+
 ## Crazy disasters and the secret (src/sim/crazy.ts)
 
 - Crazy disasters are normal `DisasterDef`s with `crazy: true` (disasters.ts), off unless the

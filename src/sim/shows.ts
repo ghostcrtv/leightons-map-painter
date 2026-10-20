@@ -10,7 +10,7 @@ import { DISASTER_SOUND, sound } from '../audio/sound';
 import type { ConflictOutcome } from './conflict';
 import { playCrazy, Walker } from './crazy';
 import {
-  Countdown, Crumble, Darken, Dogfight, Flash, FlagRaise, Frost, Lightning, RisingWater, Stamp, TugBar, Tumbleweed, Warning, Whirl, impactBlast,
+  Countdown, Crumble, ResultTag, Darken, Dogfight, Flash, FlagRaise, Frost, Lightning, RisingWater, Stamp, TugBar, Tumbleweed, Warning, Whirl, impactBlast,
   type ActionLevel,
 } from './action';
 import { severityWord } from './disasters';
@@ -192,6 +192,7 @@ function playBattleMain(fx: Effects, s: BattleShow, level: ActionLevel) {
       if (fancy) {
         fx.add(new Walker(mid, fx.offset(mid, 0, -46), 2.4, '🏳️', 44, { gait: 'fly', noFlip: true }));
         if (s.full) fx.add(new Stamp('PEACE!', '#90caf9', 0.2, 1.6));
+        else fx.add(new ResultTag(mid, null, '🕊️ PEACE', '#90caf9'));
       }
     });
   } else {
@@ -221,6 +222,7 @@ function playBattleMain(fx: Effects, s: BattleShow, level: ActionLevel) {
           const [px, py] = fx.screen(s.target);
           fx.punch(0.1, px, py);
         }
+        if (!s.full) fx.add(new ResultTag(s.target, s.winnerFlag, s.outcome === 'conquest' ? 'CONQUERS!' : s.upset ? 'UPSET!' : 'WINS!', s.upset ? '#ff8a80' : '#ffd34d'));
         if (s.full) {
           const text = s.upset ? 'UPSET!' : s.outcome === 'conquest' ? 'CONQUERED!' : 'VICTORY!';
           fx.add(new Stamp(text, s.upset ? '#ff5252' : s.outcome === 'conquest' ? '#ffd34d' : '#69f0ae', 0.35));

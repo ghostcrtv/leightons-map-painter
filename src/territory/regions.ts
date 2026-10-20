@@ -322,15 +322,59 @@ export function biteShape(g: TerritoryGrid, loser: number, front: [number, numbe
       iy /= len;
     } else ix = iy = 0;
   }
-  // Template: one main circle and 4–6 smaller ones around it (sizes relative to 1).
-  const tpl: [number, number, number][] = [[ix * 0.45, iy * 0.45, 1]];
-  const n = 4 + Math.floor(rand() * 3);
-  for (let k = 0; k < n; k++) {
-    const a = (k / n) * Math.PI * 2 + rand() * 0.9;
-    const d = 0.55 + rand() * 0.35;
-    tpl.push([ix * 0.45 + Math.cos(a) * d, iy * 0.45 + Math.sin(a) * d, 0.4 + rand() * 0.3]);
+  // Template (sizes relative to 1): a wobbly, natural-looking blob instead of a round one.
+  // Its outline is a circle bent by a few random waves (big gentle bulges + small wiggles);
+  // it's then covered by many small circles (so drawing, measuring and saves work as before).
+  const cxT = ix * 0.45;
+  const cyT = iy * 0.45;
+  const waves: [number, number, number][] = []; // [k, amplitude, phase]
+  for (let k = 2; k <= 5; k++) waves.push([k, (0.1 + rand() * 0.12) / (k * 0.55), rand() * Math.PI * 2]);
+  for (let k = 7; k <= 13; k += 2) waves.push([k, 0.018 + rand() * 0.025, rand() * Math.PI * 2]);
+  const edgeExact = (th: number) => {
+    let r = 1;
+    for (const [k, amp, ph] of waves) r += amp * Math.sin(k * th + ph);
+    return Math.max(0.45, r);
+  };
+  // A lookup table: the size search checks every cell many times, so no sin() there.
+  const EDGE_N = 720;
+  const edgeTab = new Float32Array(EDGE_N);
+  for (let i = 0; i < EDGE_N; i++) edgeTab[i] = edgeExact((i / EDGE_N) * Math.PI * 2);
+  const edge = (th: number) => edgeTab[(Math.round(((th < 0 ? th + Math.PI * 2 : th) / (Math.PI * 2)) * EDGE_N)) % EDGE_N];
+  const tpl: [number, number, number][] = [];
+  const N = 34;
+  let rMin = Infinity;
+  for (let i = 0; i < N; i++) rMin = Math.min(rMin, edge((i / N) * Math.PI * 2));
+  const core = rMin * 0.85;
+  tpl.push([cxT, cyT, core]); // the middle
+  for (let i = 0; i < N; i++) {
+    const th = (i / N) * Math.PI * 2;
+    const R = edge(th);
+    const c = Math.cos(th);
+    const sn = Math.sin(th);
+    // a small circle right at the edge (the wiggle) …
+    const rho = 0.08 + rand() * 0.05;
+    tpl.push([cxT + c * (R - rho), cyT + sn * (R - rho), rho]);
+    // … and one "bridge" circle filling the gap between the middle and the edge
+    const inner = core - 0.04;
+    const outer = R - rho;
+    if (outer > inner) {
+      const mid = (inner + outer) / 2;
+      tpl.push([cxT + c * mid, cyT + sn * mid, Math.max(0.09, (outer - inner) / 2 + 0.06)]);
+    }
   }
+  // Fast test while searching for the right size (the outline formula, not every circle).
+  const insideFast = (j: number, scale: number) => {
+    const dx = xs[j] - (front[0] + cxT * scale);
+    const dy = ys[j] - (front[1] + cyT * scale);
+    const d = Math.hypot(dx, dy) / scale;
+    return d <= 0.92 || d <= edge(Math.atan2(dy, dx)) - 0.03;
+  };
+  let rMax = 0;
+  for (let i = 0; i < 360; i++) rMax = Math.max(rMax, edge((i / 360) * Math.PI * 2));
   const inside = (j: number, scale: number) => {
+    const qx = xs[j] - (front[0] + cxT * scale);
+    const qy = ys[j] - (front[1] + cyT * scale);
+    if (qx * qx + qy * qy > (rMax + 0.05) * (rMax + 0.05) * scale * scale) return false; // far outside: skip
     for (const [ox, oy, r] of tpl) {
       const dx = xs[j] - (front[0] + ox * scale);
       const dy = ys[j] - (front[1] + oy * scale);
@@ -340,12 +384,12 @@ export function biteShape(g: TerritoryGrid, loser: number, front: [number, numbe
   };
   const areaAt = (scale: number) => {
     let a = 0;
-    for (let j = 0; j < xs.length; j++) if (inside(j, scale)) a += w[j];
+    for (let j = 0; j < xs.length; j++) if (insideFast(j, scale)) a += w[j];
     return a;
   };
   let lo = 0;
   let hi = Math.max(g.cell * 2, Math.hypot(g.cols * g.cell, g.rows * g.cell) / 2);
-  for (let it = 0; it < 26; it++) {
+  for (let it = 0; it < 20; it++) {
     const mid = (lo + hi) / 2;
     if (areaAt(mid) < km2) lo = mid;
     else hi = mid;

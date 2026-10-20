@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.5.0 — 2026-10-19 — World War drama + natural borders
+
+- Fix: World War "froze" around 190 countries left. Conquering a huge empire changed hundreds of
+  thousands of map cells and `diff.push(...cells)` overflowed the call stack (RangeError); the war
+  stopped. Now copied with a loop (`append` in Territory.ts).
+- World War: results ticker on the right (both flags; winner in gold; an eliminated country is
+  greyed with a red line; peace and other events too) with a big "countries left" counter;
+  announcements at 200, 150, 100, 75, 50, 25 ("Down to 25!"), 10 ("Then there were 10…" with
+  their flags), 5, 3 and the final two ("THE FINAL BATTLE!", always shown in full, even in
+  Go fast); a crowning screen for the winner. Now and then a disaster, alliance or rebellion
+  pops in. A "WINS!/CONQUERS!/PEACE" tag over each fast battle. Alliances that block every
+  fight break up.
+- Captured land now has a wavy, natural-looking border (`biteShape`: a circle bent by random
+  waves, covered by ~70 small circles) instead of round blobs. Old saves are unchanged.
+- Speed: cell sampling uses Math.random (crypto was slow on huge empires), the bite search uses
+  a lookup table, and fast World War limits map redraws to one every 0.5 s (`setRedrawGap`).
+
 ## 1.4.0 — 2026-10-19 — Epic action
 
 - New setting: Action level (Calm / Normal / Epic, default Epic). Calm = the original shows.

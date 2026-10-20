@@ -26,7 +26,7 @@ import { SoccerScene } from './eggs';
 import { planCoastGrowth, planRebellion, planSeaRise, rebellionCandidates } from '../territory/events';
 import { buildHistory } from './history';
 import { sound } from '../audio/sound';
-import type { SimReport } from './types';
+import type { SimReport, WarMilestone } from './types';
 
 let fx: Effects | null = null;
 let renderer: MapRenderer | null = null;
@@ -281,7 +281,7 @@ export async function conflict(t: Territory, a: string, b: string, mode: Mode = 
   const aFrontCell = bFrontCell !== null ? nearestOwned(t, bFrontCell, ca) : frontCell(g, cb, ca, rand);
   const aFront: W = aFrontCell !== null ? cellCenter(g, aFrontCell) : [lpA[0], lpA[1]];
   const bFront: W = bFrontCell !== null ? cellCenter(g, bFrontCell) : [lpB[0], lpB[1]];
-  const samples = sampleCells(g, [ca, cb], 300, rand);
+  const samples = sampleCells(g, [ca, cb], 300, Math.random); // a fast generator: this visits every cell
   const plan = result.outcome === 'peace' || !result.winner ? null : t.planBattle(result.winner, result.loser!, result.share, rand);
   const outcome = plan ? plan.action.outcome : 'peace';
   const winnerSide = result.winner === a ? 'a' : 'b';
@@ -542,7 +542,7 @@ export async function disaster(t: Territory, id: string, type?: string, mode: Mo
   await flyTo(pad(mainBox, 0.35, 1), mode);
 
   const view = inBox(pad(mainBox, 0.1, 0));
-  const pts = (sampleCells(g, [code], 120, rand).get(code) ?? []).filter(view).slice(0, 12);
+  const pts = (sampleCells(g, [code], 120, Math.random).get(code) ?? []).filter(view).slice(0, 12);
   const center: W = t.ownerAt(lp[0], lp[1]) === id ? [lp[0], lp[1]] : pts[0] ?? [lp[0], lp[1]];
   let R = 80;
   if (renderer) {
@@ -580,7 +580,7 @@ export async function rebellion(t: Territory, id: string, from: string, mode: Mo
   if (!plan) return null;
   const g = t.grid;
   const at: W = plan.at ?? [500, 300];
-  const s = sampleCells(g, [t.codeOf(from)], 200, cryptoRand);
+  const s = sampleCells(g, [t.codeOf(from)], 200, Math.random);
   const region = plan.pieces.length ? [at] : [at];
   let box: BBox = pad(boxOf([[at[0] - 12, at[1] - 8], [at[0] + 12, at[1] + 8]]), 0, 4);
   const home = renderer?.countryBox(id);
@@ -847,7 +847,35 @@ export async function simulateYear() {
 
 // ---------------------------------------------------------------- world war
 
-/** Battles between neighbours, again and again, until one country rules the world (or Stop). */
+/** World War milestones: when the number of countries left drops past one of these, announce it. */
+const WAR_MILESTONES = [200, 150, 100, 75, 50, 25, 10, 5, 3, 2];
+
+function milestoneFor(n: number, alive: string[]): WarMilestone {
+  const byLand = (ids: string[]) => [...ids].sort((x, y) => (getTerritory()?.statsFor(y)?.currentKm2 ?? 0) - (getTerritory()?.statsFor(x)?.currentKm2 ?? 0));
+  switch (n) {
+    case 2:
+      return { title: 'THE FINAL BATTLE!', sub: 'Only two empires are left. Winner takes the world!', flags: byLand(alive), vs: true };
+    case 3:
+      return { title: 'FINAL THREE!', sub: 'Three empires left standing…', flags: byLand(alive) };
+    case 5:
+      return { title: 'THE FINAL FIVE!', sub: 'Who will rule the world?', flags: byLand(alive) };
+    case 10:
+      return { title: 'Then there were 10…', flags: byLand(alive) };
+    case 25:
+      return { title: 'Down to 25!', sub: 'The empires are getting huge.', flags: byLand(alive).slice(0, 8) };
+    case 50:
+      return { title: 'Only 50 left!', sub: 'Half the world is gone…', flags: byLand(alive).slice(0, 6) };
+    default:
+      return { title: `Down to ${n}!`, sub: n >= 150 ? 'The war has begun!' : 'The big empires are rising…', flags: byLand(alive).slice(0, 5) };
+  }
+}
+
+/**
+ * World War: battles between neighbours, again and again, until one country rules the world (or
+ * Stop). Every result goes on the ticker; big moments ("Down to 100!", "Then there were 10…",
+ * "THE FINAL BATTLE!") pause for an announcement; now and then something else happens (a
+ * disaster, a new alliance, a rebellion). The final battle is always shown in full.
+ */
 export async function startWorldWar(fast: boolean) {
   const t = getTerritory();
   if (busy || !t) return;
@@ -856,25 +884,76 @@ export async function startWorldWar(fast: boolean) {
   closeWindows();
   const st = game();
   st.setSimRunning('war');
+  st.pushWarTicker(null);
   let battles = 0;
   let champion: string | undefined;
+  let left = playableIds().length;
+  st.setWarLeft(left);
+  // Milestones already passed when the war starts don't count.
+  const announced = new Set(WAR_MILESTONES.filter((m) => m >= left));
+  let n = 0;
+  let stuck = 0;
+  const announce = async (m: WarMilestone, ms: number) => {
+    st.setWarMilestone(m);
+    sound.play(m.vs ? 'drumroll' : 'stamp');
+    await sleep(ms);
+    st.setWarMilestone(null);
+    await sleep(150);
+  };
   try {
     while (!stopRequested) {
       const alive = playableIds();
-      if (alive.length <= 1) {
+      left = alive.length;
+      st.setWarLeft(left);
+      if (left <= 1) {
         champion = alive[0];
         break;
       }
+      // Big moments.
+      const due = WAR_MILESTONES.filter((m) => m >= left && !announced.has(m));
+      if (due.length) {
+        for (const m of due) announced.add(m);
+        const m = Math.min(...due);
+        await announce(milestoneFor(m === 2 || m === 3 || m === 5 || m === 10 ? left : m, alive), fast || skipRequested ? 1500 : m <= 10 ? 2800 : 2000);
+        if (stopRequested) break;
+      }
+      const silent = fast || skipRequested;
+      const finalBattle = left === 2;
+      renderer?.setRedrawGap(silent && !finalBattle ? 500 : 0);
+      // Now and then, something else happens (not near the end, so the final is about the fight).
+      if (left > 5 && cryptoRand() < 0.1) {
+        const ev = await warEvent(t, silent ? { silent: true } : { quick: true });
+        if (ev) st.pushWarTicker({ n: ++n, kind: 'event', ...ev });
+        if (silent) await sleep(120);
+        continue;
+      }
       // Strong, big countries are more likely to start fights.
       const a = pickWeighted(alive.map((id) => ({ item: id, weight: Math.pow(battlePower(id), 2) * Math.pow((t.statsFor(id)?.currentKm2 ?? 1) + 1, 0.25) })), cryptoRand);
-      const b = randomOpponent(a);
-      if (!b || t.areAllies(a, b)) continue;
+      let b = randomOpponent(a);
+      if (!b || t.areAllies(a, b)) {
+        // Allies everywhere? Alliances break up in a World War, sooner or later.
+        if (++stuck > 20 && b) {
+          t.apply({ kind: 'alliance', a, b, on: false });
+          st.pushWarTicker({ n: ++n, kind: 'event', emoji: '💔', text: `${nameOf(a)} and ${nameOf(b)} break their alliance` });
+        } else {
+          if (stuck % 5 === 0) await sleep(0); // never hog the iPad
+          continue;
+        }
+      }
+      if (!b) continue;
+      stuck = 0;
       battles++;
-      setBannerStep(`🌍 World War · battle ${battles} · ${alive.length} countries left`);
-      const silent = fast || skipRequested;
-      await conflict(t, a, b, silent ? { silent: true, boost: 1.8 } : { quick: true, boost: 1.8 });
-      if (silent) {
-        st.setSimBanner({ kind: 'conflict', a, b, step: `🌍 World War · battle ${battles} · ${alive.length} countries left` });
+      setBannerStep(`🌍 World War · battle ${battles} · ${left} countries left`);
+      const mode: Mode = finalBattle ? { boost: 1.8 } : silent ? { silent: true, boost: 1.8 } : { quick: true, boost: 1.8 };
+      const rep = await conflict(t, a, b, mode);
+      if (rep.kind === 'conflict') {
+        const eliminated = rep.loser && !playable(rep.loser) ? rep.loser : undefined;
+        st.pushWarTicker({ n: ++n, kind: 'battle', a, b, outcome: rep.outcome, winner: rep.winner, loser: rep.loser, eliminated });
+        st.setWarLeft(playableIds().length);
+      }
+      if (finalBattle) st.setSimReport(null);
+      if (silent && !finalBattle) {
+        st.setSimBanner({ kind: 'conflict', a, b, step: `🌍 World War · battle ${battles} · ${left} countries left` });
         await sleep(120); // let the map redraw and taps (Stop!) through
       }
     }
@@ -882,21 +961,58 @@ export async function startWorldWar(fast: boolean) {
     console.error('World war failed', e);
   }
   setBannerStep(undefined);
-  st.setSimRunning(null);
+  st.setSimBanner(null);
+  renderer?.setRedrawGap(0);
   const alive = playableIds();
   let leader: { id: string; km2: number } | undefined;
   for (const id of alive) {
     const km2 = t.statsFor(id)?.currentKm2 ?? 0;
     if (!leader || km2 > leader.km2) leader = { id, km2 };
   }
-  if (champion) unlock('world-champion');
-  if (champion && fx && renderer) {
-    renderer.showWholeWorld();
-    const lp = renderer.labelPoint(champion);
-    if (lp) for (let i = 0; i < 4; i++) setTimeout(() => fx?.firework(lp as W, [colorOf(champion!), '#ffd34d', '#ffffff'], 1.4), 600 + i * 350);
-    sound.play('win');
+  if (champion) {
+    unlock('world-champion');
+    if (fx && renderer) {
+      renderer.showWholeWorld();
+      const lp = renderer.labelPoint(champion);
+      if (lp) for (let i = 0; i < 8; i++) setTimeout(() => fx?.firework(lp as W, [colorOf(champion!), '#ffd34d', '#ffffff'], 1.5), 500 + i * 380);
+    }
+    sound.play('trumpet');
+    st.setWarMilestone({ title: `${nameOf(champion)} rules the world!`, sub: `After ${battles} battles, one empire is left.`, flags: [champion], champion });
+    await sleep(4200);
+    st.setWarMilestone(null);
   }
+  st.setSimRunning(null);
+  st.setWarLeft(null);
   finish({ kind: 'war', battles, left: alive.length, leader, champion });
+}
+
+/** Something other than a battle during a World War. Returns its ticker line, or null. */
+async function warEvent(t: Territory, mode: Mode): Promise<{ emoji: string; text: string } | null> {
+  const r = cryptoRand();
+  if (r < 0.45) {
+    const id = randomNation();
+    if (!id) return null;
+    const rep = await disaster(t, id, undefined, mode);
+    if (rep.kind !== 'disaster') return null;
+    const d = DISASTER_BY_ID.get(rep.type);
+    return { emoji: d?.emoji ?? '💥', text: `${d?.name ?? 'Disaster'} hits ${nameOf(id)}` };
+  }
+  if (r < 0.75) {
+    const p = randomPair();
+    if (!p || t.areAllies(p.a, p.b)) return null;
+    t.apply({ kind: 'alliance', a: p.a, b: p.b, on: true });
+    if (!mode.silent) {
+      begin({ kind: 'disaster', a: p.a, emoji: '🤝', text: `${nameOf(p.a)} and ${nameOf(p.b)} team up!` });
+      sound.play('peace');
+      await sleep(900);
+    }
+    return { emoji: '🤝', text: `${nameOf(p.a)} and ${nameOf(p.b)} team up` };
+  }
+  const list = rebels();
+  if (!list.length) return null;
+  const c = pickWeighted(list.map((x) => ({ item: x, weight: Math.sqrt(x.km2 + 1) })), cryptoRand);
+  const rep = await rebellion(t, c.id, c.from, mode);
+  return rep ? { emoji: '✊', text: `${nameOf(c.id)} rises up against ${nameOf(c.from)}!` } : null;
 }
 
 // ---------------------------------------------------------------- replays (history log)
@@ -923,7 +1039,7 @@ export async function replay(a: Action) {
       await sleep(800);
       const view = inBox(box);
       const g = t.grid;
-      const s = sampleCells(g, [t.codeOf(first), t.codeOf(second)], 200, cryptoRand);
+      const s = sampleCells(g, [t.codeOf(first), t.codeOf(second)], 200, Math.random);
       const near = (pts: W[]) => pts.filter(view).sort((p, q) => dist2(p, at) - dist2(q, at)).slice(0, 14);
       const spread = (n: number) => Array.from({ length: n }, () => [at[0] + (Math.random() - 0.5) * 8, at[1] + (Math.random() - 0.5) * 6] as W);
       let aPts = near(s.get(t.codeOf(first)) ?? []);

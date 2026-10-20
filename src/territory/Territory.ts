@@ -300,10 +300,10 @@ export class Territory {
     const taken = this.applied.splice(from);
     const diff = TerritoryGrid.emptyDiff();
     for (const t of taken) {
-      diff.cells.push(...t.diff.cells);
-      diff.old.push(...t.diff.old);
-      diff.tiny.push(...t.diff.tiny);
-      diff.tinyOld.push(...t.diff.tinyOld);
+      append(diff.cells, t.diff.cells);
+      append(diff.old, t.diff.old);
+      append(diff.tiny, t.diff.tiny);
+      append(diff.tinyOld, t.diff.tinyOld);
     }
     this.applied.push({ action: { kind: 'year', events: taken.map((t) => t.action) }, diff });
     this.redoStack = [];
@@ -359,10 +359,10 @@ export class Territory {
       case 'rebellion':
         for (const p of a.pieces) {
           const d = this.applyToGrid(p);
-          diff.cells.push(...d.cells);
-          diff.old.push(...d.old);
-          diff.tiny.push(...d.tiny);
-          diff.tinyOld.push(...d.tinyOld);
+          append(diff.cells, d.cells);
+          append(diff.old, d.old);
+          append(diff.tiny, d.tiny);
+          append(diff.tinyOld, d.tinyOld);
         }
         break;
       case 'disaster':
@@ -372,10 +372,10 @@ export class Territory {
       case 'year':
         for (const ev of a.events ?? []) {
           const d = this.applyToGrid(ev);
-          diff.cells.push(...d.cells);
-          diff.old.push(...d.old);
-          diff.tiny.push(...d.tiny);
-          diff.tinyOld.push(...d.tinyOld);
+          append(diff.cells, d.cells);
+          append(diff.old, d.old);
+          append(diff.tiny, d.tiny);
+          append(diff.tinyOld, d.tinyOld);
         }
         break;
     }
@@ -736,4 +736,12 @@ function circlesBox(c: number[], into: BBox = emptyBBox()): BBox {
     if (c[i + 1] + r > b.maxY) b.maxY = c[i + 1] + r;
   }
   return b;
+}
+
+/**
+ * Add `src` to the end of `dst`. (Not `dst.push(...src)`: with hundreds of thousands of cells —
+ * one big empire conquering another in a World War — that overflows the call stack.)
+ */
+function append<T>(dst: T[], src: ArrayLike<T>) {
+  for (let i = 0; i < src.length; i++) dst.push(src[i]);
 }

@@ -1,3 +1,4 @@
+import type { WarMilestone, WarTickerEntry } from '../sim/types';
 /**
  * App-wide state (Zustand). Kept small on purpose: the map itself is drawn by
  * MapRenderer outside React, so moving the map never re-renders React.
@@ -80,6 +81,10 @@ interface GameState {
   showNight: boolean;
   /** Zombies, aliens and other crazy disasters (Settings). */
   crazyDisasters: boolean;
+  /** World War: the ticker of results, countries left, and the current big announcement. */
+  warTicker: WarTickerEntry[];
+  warLeft: number | null;
+  warMilestone: WarMilestone | null;
   /** How big battle and disaster shows are (Settings). */
   actionLevel: 'calm' | 'normal' | 'epic';
   /** Landmark pins on the map (Settings). */
@@ -129,6 +134,9 @@ interface GameState {
   setShowNight(v: boolean): void;
   setCrazyDisasters(v: boolean): void;
   setActionLevel(v: 'calm' | 'normal' | 'epic'): void;
+  pushWarTicker(e: WarTickerEntry | null): void;
+  setWarLeft(v: number | null): void;
+  setWarMilestone(v: WarMilestone | null): void;
   setShowLandmarks(v: boolean): void;
   setLandmarkCard(v: { id: string; x: number; y: number } | null): void;
   setSecretPop(v: 'monkey' | 'island' | null): void;
@@ -179,6 +187,9 @@ export const useGame = create<GameState>((set) => ({
   showCapitals: readSetting('showCapitals', true),
   showNight: readSetting('showNight', false),
   crazyDisasters: readSetting('crazyDisasters', false),
+  warTicker: [],
+  warLeft: null,
+  warMilestone: null,
   actionLevel: readSetting<'calm' | 'normal' | 'epic'>('actionLevel', 'epic'),
   showLandmarks: readSetting('showLandmarks', true),
   landmarkCard: null,
@@ -235,6 +246,9 @@ export const useGame = create<GameState>((set) => ({
   },
   setLandmarkCard: (landmarkCard) => set({ landmarkCard }),
   setSecretPop: (secretPop) => set({ secretPop }),
+  pushWarTicker: (e) => set((st) => ({ warTicker: e ? [e, ...st.warTicker].slice(0, 60) : [] })),
+  setWarLeft: (warLeft) => set({ warLeft }),
+  setWarMilestone: (warMilestone) => set({ warMilestone }),
   setActionLevel: (actionLevel) => {
     writeSetting('actionLevel', actionLevel);
     set({ actionLevel });

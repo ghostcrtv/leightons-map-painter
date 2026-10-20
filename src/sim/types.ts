@@ -74,3 +74,20 @@ export type SimReport =
       powerAfter: number;
       undoVersion: number | null;
     };
+
+/** One line of the World War ticker. */
+export type WarTickerEntry =
+  | { n: number; kind: 'battle'; a: string; b: string; outcome: ConflictOutcome; winner?: string; loser?: string; eliminated?: string }
+  | { n: number; kind: 'event'; emoji: string; text: string };
+
+/** A big World War announcement ("Down to 100!", "The Final Battle!"…). */
+export interface WarMilestone {
+  title: string;
+  sub?: string;
+  /** Flags to show in a row (the last few countries). */
+  flags?: string[];
+  /** Two flags with "VS" between them. */
+  vs?: boolean;
+  /** The winner's crowning. */
+  champion?: string;
+}
